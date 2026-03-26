@@ -4,7 +4,7 @@ use axum::{
     extract::{Query, State},
     routing::get,
 };
-use llmem_core::{MemoryIndex, global_dir, project_dir};
+use llmem_core::{MemoryIndex, global_dir, llmem_root, project_dir};
 use llmem_index::{AnnIndex, hnsw::HnswIndex};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -122,8 +122,8 @@ async fn search(
 
 async fn reload(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Re-read .active-ctx and reload project context
-    if let Some(ctx_dir) = global_dir() {
-        let ctx_file = ctx_dir.join(".active-ctx");
+    if let Some(root_dir) = llmem_root() {
+        let ctx_file = root_dir.join(".active-ctx");
         if ctx_file.exists()
             && let Ok(ctx) = std::fs::read_to_string(&ctx_file)
         {
@@ -153,8 +153,8 @@ async fn main() -> Result<()> {
     let mut global_hnsw = None;
 
     // Check for active context
-    if let Some(ctx_dir) = global_dir() {
-        let ctx_file = ctx_dir.join(".active-ctx");
+    if let Some(root_dir) = llmem_root() {
+        let ctx_file = root_dir.join(".active-ctx");
         if ctx_file.exists()
             && let Ok(ctx) = std::fs::read_to_string(&ctx_file)
         {
@@ -165,9 +165,11 @@ async fn main() -> Result<()> {
             }
             project_root = Some(root);
         }
+    }
 
-        // Load global HNSW
-        let global_hnsw_path = ctx_dir.join(".index.hnsw");
+    // Load global HNSW
+    if let Some(dir) = global_dir() {
+        let global_hnsw_path = dir.join(".index.hnsw");
         if global_hnsw_path.exists() {
             global_hnsw = HnswIndex::load_from(&global_hnsw_path).ok();
         }

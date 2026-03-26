@@ -1,27 +1,31 @@
 pub mod backend;
+pub mod config;
 pub mod embed;
 mod error;
 pub mod index;
 pub mod memory;
 
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
+pub use config::Config;
 pub use embed::{Embedder, EmbeddingEntry, EmbeddingStore, OllamaEmbedder};
 pub use error::Error;
 pub use index::{IndexEntry, MemoryIndex};
 pub use memory::{Frontmatter, MemoryFile, MemoryLevel, MemoryType};
 
-/// Default project-level memory directory name.
-pub const PROJECT_DIR: &str = ".llmem";
-
 /// Default index file name within a memory directory.
 pub const INDEX_FILE: &str = "MEMORY.md";
 
-/// Returns the global memory directory path (`~/.config/llmem/`).
-pub fn global_dir() -> Option<std::path::PathBuf> {
-    dirs::config_dir().map(|d| d.join("llmem"))
+/// Returns the llmem root directory from config.
+pub fn llmem_root() -> Option<std::path::PathBuf> {
+    Some(Config::load().root())
 }
 
-/// Returns the project memory directory path (`.llmem/` in given root).
+/// Returns the global memory directory from config.
+pub fn global_dir() -> Option<std::path::PathBuf> {
+    Some(Config::load().global_dir())
+}
+
+/// Returns the project memory directory from config.
 pub fn project_dir(root: &std::path::Path) -> std::path::PathBuf {
-    root.join(PROJECT_DIR)
+    Config::load().project_dir(root)
 }

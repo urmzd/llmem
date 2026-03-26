@@ -23,7 +23,7 @@ struct Cli {
 enum Command {
     /// Initialize a memory directory
     Init {
-        /// Initialize global memory (~/.config/llmem/) instead of project
+        /// Initialize global memory (~/.llmem/global/) instead of project
         #[arg(long, short)]
         global: bool,
 
@@ -163,6 +163,11 @@ enum Command {
         #[command(subcommand)]
         action: CodeAction,
     },
+    /// Manage llmem configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -198,6 +203,28 @@ enum CodeAction {
         #[arg(long, default_value = ".")]
         root: PathBuf,
     },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show current configuration
+    Show,
+    /// Get a config value by key (dot-notation, e.g. embedding.model)
+    Get {
+        /// Config key in dot-notation
+        key: String,
+    },
+    /// Set a config value by key
+    Set {
+        /// Config key in dot-notation
+        key: String,
+        /// New value
+        value: String,
+    },
+    /// Create default config file
+    Init,
+    /// Print config file path
+    Path,
 }
 
 fn parse_memory_type(s: &str) -> Result<MemoryType, String> {
@@ -472,9 +499,10 @@ fn run(cli: Cli) -> Result<()> {
             CtxAction::Switch { root } => {
                 let root =
                     std::fs::canonicalize(&root).context("could not resolve project root")?;
-                let ctx_dir = global_dir().context("could not determine config directory")?;
-                std::fs::create_dir_all(&ctx_dir)?;
-                let ctx_file = ctx_dir.join(".active-ctx");
+                let llmem_root =
+                    llmem_core::llmem_root().context("could not determine home directory")?;
+                std::fs::create_dir_all(&llmem_root)?;
+                let ctx_file = llmem_root.join(".active-ctx");
                 std::fs::write(&ctx_file, root.display().to_string())?;
                 info!("switched context to {}", root.display());
                 output_ok(json!({
@@ -482,8 +510,9 @@ fn run(cli: Cli) -> Result<()> {
                 }));
             }
             CtxAction::Show => {
-                let ctx_dir = global_dir().context("could not determine config directory")?;
-                let ctx_file = ctx_dir.join(".active-ctx");
+                let llmem_root =
+                    llmem_core::llmem_root().context("could not determine home directory")?;
+                let ctx_file = llmem_root.join(".active-ctx");
                 if ctx_file.exists() {
                     let ctx = std::fs::read_to_string(&ctx_file)?;
                     output_ok(json!({
@@ -737,6 +766,47 @@ fn run(cli: Cli) -> Result<()> {
                 hits.truncate(top_k);
 
                 output_ok(json!({ "hits": hits }));
+            }
+        },
+
+        Command::Config { action } => match action {
+            ConfigAction::Show => {
+                let config = llmem_core::Config::load();
+                let toml_str =
+                    toml::to_string_pretty(&config).context("failed to serialize config")?;
+                output_ok(json!({
+                    "config": toml_str,
+                    "path": config.path().display().to_string(),
+                }));
+            }
+            ConfigAction::Get { key } => {
+                let config = llmem_core::Config::load();
+                match config.get(&key) {
+                    Some(value) => output_ok(json!({ "key": key, "value": value })),
+                    None => output_err(&format!("unknown config key: {key}")),
+                }
+            }
+            ConfigAction::Set { key, value } => {
+                let mut config = llmem_core::Config::load();
+                config.set(&key, &value)?;
+                config.save()?;
+                info!("set {key} = {value}");
+                output_ok(json!({ "key": key, "value": value }));
+            }
+            ConfigAction::Init => {
+                let config = llmem_core::Config::default();
+                config.save()?;
+                info!("created {}", config.path().display());
+                output_ok(json!({
+                    "path": config.path().display().to_string(),
+                    "action": "created",
+                }));
+            }
+            ConfigAction::Path => {
+                let config = llmem_core::Config::load();
+                output_ok(json!({
+                    "path": config.path().display().to_string(),
+                }));
             }
         },
     }

@@ -46,7 +46,9 @@ impl IndexEntry {
     }
 }
 
-const MAX_INDEX_LINES: usize = 200;
+fn max_index_lines() -> usize {
+    crate::Config::load().index.max_lines
+}
 
 /// The MEMORY.md index.
 #[derive(Debug, Clone)]
@@ -96,10 +98,11 @@ impl MemoryIndex {
             });
         }
         self.entries.push(entry);
-        if self.entries.len() > MAX_INDEX_LINES {
+        let max = max_index_lines();
+        if self.entries.len() > max {
             return Err(Error::IndexTooLarge {
                 lines: self.entries.len(),
-                max: MAX_INDEX_LINES,
+                max,
             });
         }
         Ok(())

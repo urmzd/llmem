@@ -25,4 +25,7 @@ pub enum Error {
 
     #[error("embedding error: {0}")]
     Embedding(String),
+
+    #[error("config error: {0}")]
+    ConfigFormat(String),
 }

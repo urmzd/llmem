@@ -22,15 +22,15 @@ Two levels, both using the same format:
 
 | Level | Location | Scope |
 |-------|----------|-------|
-| Project | `.llmem/` at repo root | Per-repo corrections, decisions, context |
-| Global | `~/.config/llmem/` | Cross-project user preferences, expertise |
+| Project | `~/.llmem/{project}/` | Per-repo corrections, decisions, context |
+| Global | `~/.llmem/global/` | Cross-project user preferences, expertise |
 
 Project memory takes precedence over global when they conflict.
 
 ### Directory layout
 
 ```
-.llmem/              # or ~/.config/llmem/
+~/.llmem/{project}/  # or ~/.llmem/global/
 ├── MEMORY.md            # Index — always loaded at session start
 ├── user_<topic>.md
 ├── feedback_<topic>.md
@@ -92,7 +92,7 @@ Under 200 lines per level. Loaded at every conversation start.
 
 ## Rules
 
-1. **Project root only** — `.llmem/` at repo root, `~/.config/llmem/` globally
+1. **Centralized storage** — `~/.llmem/{project}/` per project, `~/.llmem/global/` globally
 2. **Observe before saving** — wait for a pattern or explicit instruction
 3. **Save corrections immediately** — "don't do X" is persisted now
 4. **Include why** — a rule without rationale can't handle edge cases

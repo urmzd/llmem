@@ -16,6 +16,3 @@
 
 # Hook sync state (machine-local)
 .githooks/.sr-hooks-hash
-
-# llmem memory directory (project-specific, not committed)
-.llmem/

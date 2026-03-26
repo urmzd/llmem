@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">llmem</h1>
   <p align="center">
-    An open standard for tool-agnostic AI agent memory.
+    An open ecosystem for tool-agnostic AI agent memory.
     <br /><br />
     <a href="#quick-start">Quick Start</a>
     &middot;
@@ -13,14 +13,16 @@
 
 ## Features
 
-- Two-level memory: project (`.llmem/`) and global (`~/.config/llmem/`)
+- Two-level memory: project (`~/.llmem/{project}/`) and global (`~/.llmem/global/`)
 - Plain markdown with YAML frontmatter — human-readable, git-friendly
 - Dynamic loading — index always loaded, individual files read on-demand
 - Typed memories: user, feedback, project, reference
-- Pluggable `Embedder` trait — bring your own embedding model (ONNX, Ollama, OpenAI, custom)
+- JSON-first CLI — stdout for structured JSON, stderr for UX; pipe-friendly
+- Ollama embedder built-in (`nomic-embed-text`) with pluggable `Embedder` trait
 - ANN index with HNSW and IVF-Flat implementations for fast semantic search
+- Code indexing — tree-sitter chunking for Rust, Python, JS/TS, Go
+- Hook-ready — `recall` and `learn` commands for pre/post-hook integration
 - Context switching — `llmem ctx switch` swaps project memory while keeping global resident
-- No tooling required — just create files; CLI and server are optional
 - Works with Claude Code, Codex, Gemini, Copilot, Cursor, or any AI tool
 
 ## Install
@@ -30,19 +32,19 @@ cargo install llmem-cli          # CLI
 cargo install llmem-server       # RAG server (optional)
 ```
 
-Or use without tooling — just create `.llmem/MEMORY.md` manually.
+Or use without tooling — just create `~/.llmem/{project}/MEMORY.md` manually.
 
 ## Quick Start
 
 ### Without tooling
 
 ```bash
-mkdir .llmem
-cat > .llmem/MEMORY.md << 'EOF'
+mkdir -p ~/.llmem/my-project
+cat > ~/.llmem/my-project/MEMORY.md << 'EOF'
 - [Prefer Rust](feedback_prefer_rust.md) — default to Rust for new CLI tools
 EOF
 
-cat > .llmem/feedback_prefer_rust.md << 'EOF'
+cat > ~/.llmem/my-project/feedback_prefer_rust.md << 'EOF'
 ---
 name: prefer-rust
 description: Default to Rust for new CLI tools
@@ -74,8 +76,8 @@ llmem search "rust"
 
 | Level | Location | Scope |
 |-------|----------|-------|
-| Project | `.llmem/` at repo root | Per-repo corrections, decisions |
-| Global | `~/.config/llmem/` | Cross-project preferences, expertise |
+| Project | `~/.llmem/{project}/` | Per-repo corrections, decisions |
+| Global | `~/.llmem/global/` | Cross-project preferences, expertise |
 
 Project memory takes precedence over global when they conflict.
 
@@ -92,14 +94,20 @@ Project memory takes precedence over global when they conflict.
 
 | Command | Description |
 |---------|-------------|
-| `llmem init [--global]` | Create `.llmem/MEMORY.md` or global |
+| `llmem init [--global]` | Create `~/.llmem/{project}/MEMORY.md` or global |
 | `llmem add <type> <name> -d <desc>` | Add a memory |
+| `llmem learn [--stdin]` | Upsert a memory (JSON stdin or args) |
+| `llmem recall --query <q>` | Retrieve relevant memories (pre-hook) |
 | `llmem list [--all]` | List memories |
 | `llmem search <query>` | Search by description |
 | `llmem remove <file>` | Remove a memory |
-| `llmem embed [--global]` | Sync embeddings for current context |
+| `llmem embed [--global]` | Sync embeddings via Ollama |
+| `llmem code index` | Index source code with tree-sitter |
+| `llmem code search <query>` | Search indexed code chunks |
 | `llmem ctx switch [<root>]` | Switch active project context |
 | `llmem ctx show` | Show active project context |
+
+All commands output JSON to stdout (`{"ok": true, "data": {...}}`).
 
 ### RAG Server
 

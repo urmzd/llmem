@@ -22,4 +22,5 @@ clap = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }

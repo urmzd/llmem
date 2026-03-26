@@ -39,15 +39,18 @@ impl OllamaEmbedder {
         }
     }
 
-    /// Create from environment variables.
-    /// - `OLLAMA_HOST` (default: `http://localhost:11434`)
-    /// - `OLLAMA_EMBED_MODEL` (default: `nomic-embed-text`)
-    pub fn from_env() -> Self {
-        let host =
-            std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    /// Create from config, with env var overrides.
+    /// Priority: env vars > config > defaults.
+    pub fn from_config(config: &crate::Config) -> Self {
+        let host = std::env::var("OLLAMA_HOST").unwrap_or_else(|_| config.embedding.host.clone());
         let model =
-            std::env::var("OLLAMA_EMBED_MODEL").unwrap_or_else(|_| "nomic-embed-text".to_string());
+            std::env::var("OLLAMA_EMBED_MODEL").unwrap_or_else(|_| config.embedding.model.clone());
         Self::new(host, model)
+    }
+
+    /// Create from environment variables and default config.
+    pub fn from_env() -> Self {
+        Self::from_config(&crate::Config::load())
     }
 
     /// The configured Ollama host URL.
