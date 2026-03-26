@@ -1,8 +1,12 @@
+pub mod ollama;
+
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::{Read as _, Write as _};
 use std::path::Path;
+
+pub use ollama::OllamaEmbedder;
 
 use crate::Error;
 
@@ -19,7 +23,7 @@ pub trait Embedder: Send + Sync {
     }
 
     /// The dimensionality of the output vectors.
-    fn dimension(&self) -> usize;
+    fn dimension(&self) -> Result<usize, Error>;
 }
 
 /// A single entry mapping a file to its embedding.

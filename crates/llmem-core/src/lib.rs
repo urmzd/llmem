@@ -5,7 +5,7 @@ pub mod index;
 pub mod memory;
 
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
-pub use embed::{Embedder, EmbeddingEntry, EmbeddingStore};
+pub use embed::{Embedder, EmbeddingEntry, EmbeddingStore, OllamaEmbedder};
 pub use error::Error;
 pub use index::{IndexEntry, MemoryIndex};
 pub use memory::{Frontmatter, MemoryFile, MemoryLevel, MemoryType};

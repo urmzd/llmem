@@ -22,4 +22,7 @@ pub enum Error {
 
     #[error("embedding format error: {0}")]
     EmbeddingFormat(String),
+
+    #[error("embedding error: {0}")]
+    Embedding(String),
 }

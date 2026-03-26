@@ -105,6 +105,19 @@ impl MemoryIndex {
         Ok(())
     }
 
+    /// Upsert an entry: update if the file exists, insert if not.
+    /// Returns "created" or "updated".
+    pub fn upsert(&mut self, entry: IndexEntry) -> &'static str {
+        if let Some(existing) = self.entries.iter_mut().find(|e| e.file == entry.file) {
+            existing.title = entry.title;
+            existing.summary = entry.summary;
+            "updated"
+        } else {
+            self.entries.push(entry);
+            "created"
+        }
+    }
+
     /// Remove an entry by filename.
     pub fn remove(&mut self, file: &str) -> bool {
         let len = self.entries.len();
