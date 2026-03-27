@@ -14,6 +14,9 @@ pub struct Config {
     pub recall: RecallConfig,
     pub index: IndexConfig,
     pub code: CodeConfig,
+    pub quantization: QuantizationConfig,
+    pub consolidation: ConsolidationConfig,
+    pub inbox: InboxConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,12 +29,29 @@ pub struct StorageConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct EmbeddingConfig {
-    /// Embedding provider: "ollama" or "none".
+    /// Embedding provider: "ollama", "onnx-code", "onnx-memory", or "none".
     pub provider: String,
     /// Ollama host URL.
     pub host: String,
     /// Embedding model name.
     pub model: String,
+    /// Path to ONNX model file (for onnx-code / onnx-memory providers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_path: Option<String>,
+}
+
+/// Configuration for TurboQuant vector quantization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QuantizationConfig {
+    /// Enable quantized embedding storage.
+    pub enabled: bool,
+    /// Bit-width per coordinate (1-4).
+    pub bits: u8,
+    /// Quantization algorithm: "mse" or "prod".
+    pub algorithm: String,
+    /// Temporal re-ranking weight λ ∈ [0, 1]. 0 = pure cosine, 1 = pure temporal.
+    pub temporal_weight: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +79,45 @@ pub struct CodeConfig {
     pub max_chunk_lines: usize,
 }
 
+/// Configuration for memory consolidation (sleep cycle).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConsolidationConfig {
+    /// Days since last access before a memory is considered for decay.
+    pub decay_days: u64,
+    /// Cosine similarity threshold for merging memories (0.0-1.0).
+    pub merge_threshold: f32,
+    /// Minimum access count to protect a memory from decay.
+    pub protected_access_count: u32,
+    /// Maximum memories per level before pruning is forced.
+    pub max_memories: usize,
+}
+
+/// Configuration for the working memory inbox.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InboxConfig {
+    /// Maximum number of items in the inbox (default 7, like working memory capacity).
+    pub capacity: usize,
+}
+
+impl Default for ConsolidationConfig {
+    fn default() -> Self {
+        Self {
+            decay_days: 90,
+            merge_threshold: 0.85,
+            protected_access_count: 5,
+            max_memories: 200,
+        }
+    }
+}
+
+impl Default for InboxConfig {
+    fn default() -> Self {
+        Self { capacity: 7 }
+    }
+}
+
 impl Default for StorageConfig {
     fn default() -> Self {
         let root = dirs::home_dir()
@@ -74,6 +133,18 @@ impl Default for EmbeddingConfig {
             provider: "ollama".to_string(),
             host: "http://localhost:11434".to_string(),
             model: "nomic-embed-text".to_string(),
+            model_path: None,
+        }
+    }
+}
+
+impl Default for QuantizationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bits: 2,
+            algorithm: "mse".to_string(),
+            temporal_weight: 0.2,
         }
     }
 }

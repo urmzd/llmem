@@ -14,9 +14,10 @@ pub enum MemoryLevel {
 }
 
 /// Memory type classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MemoryType {
+    #[default]
     User,
     Feedback,
     Project,
@@ -49,12 +50,44 @@ impl std::str::FromStr for MemoryType {
 }
 
 /// YAML frontmatter of a memory file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Frontmatter {
     pub name: String,
     pub description: String,
     #[serde(rename = "type")]
     pub memory_type: MemoryType,
+
+    /// When this memory was first created (ISO 8601).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    /// When this memory was last accessed/retrieved (ISO 8601).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_accessed: Option<String>,
+
+    /// Number of times this memory has been retrieved.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub access_count: u32,
+
+    /// Consolidation strength: increases when memory survives consolidation.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub strength: f32,
+
+    /// Original memory filenames if this was created via consolidation merge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consolidated_from: Option<Vec<String>>,
+
+    /// How this memory was created: "note", "memorize", "learn", "consolidation".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
+}
+
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.0
 }
 
 /// A parsed memory file.
@@ -146,6 +179,7 @@ Use open standards.
                 name: "roundtrip".to_string(),
                 description: "Test roundtrip".to_string(),
                 memory_type: MemoryType::User,
+                ..Default::default()
             },
             body: "Some content.".to_string(),
         };

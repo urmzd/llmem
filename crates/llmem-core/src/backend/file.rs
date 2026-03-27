@@ -160,6 +160,7 @@ mod tests {
                 name: "test-memory".into(),
                 description: "A test".into(),
                 memory_type: MemoryType::Feedback,
+                ..Default::default()
             },
             body: "Test body.".into(),
         };
@@ -182,6 +183,7 @@ mod tests {
                     name: format!("mem-{i}"),
                     description: format!("memory number {i}"),
                     memory_type: MemoryType::User,
+                    ..Default::default()
                 },
                 body: String::new(),
             };
@@ -204,6 +206,7 @@ mod tests {
                 name: "to-remove".into(),
                 description: "will be removed".into(),
                 memory_type: MemoryType::Feedback,
+                ..Default::default()
             },
             body: String::new(),
         };
