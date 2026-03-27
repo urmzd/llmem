@@ -2,14 +2,18 @@
 
 ## Project Overview
 
-A specification and Rust implementation defining a convention for storing AI agent memory as plain markdown files. Two levels: project (`~/.llmem/{project}/`) and global (`~/.llmem/global/`).
+A specification and Rust implementation defining a convention for storing AI agent memory as plain markdown files. Two levels: project (`~/.llmem/{project}/`) and global (`~/.llmem/global/`). Uses cognitive metaphors for its CLI: memorize, remember, note, learn, consolidate, reflect, forget.
 
 ## Architecture
 
-Rust workspace with three crates:
-- `llmem-core` — spec types, file parsing, index operations
-- `llmem-cli` — CLI binary (`llmem`) for managing memory
+Rust workspace with four crates:
+- `llmem-core` — spec types, file parsing, index operations, inbox, config, embeddings
+- `llmem-cli` — CLI binary (`llmem`) with cognitive commands
 - `llmem-server` — RAG HTTP server for semantic search
+- `llmem-index` — ANN indices (HNSW, IVF-Flat) and tree-sitter code indexing
+- `llmem-quant` — TurboQuant vector quantization (1-4 bit)
+
+Training pipeline in `training/` (Python): data generation, model distillation, ONNX export.
 
 ## Discovering Structure
 
@@ -33,7 +37,7 @@ cargo run -p llmem-cli   # run the CLI
 ## Commit Guidelines
 
 Conventional commits via `sr commit`:
-- `feat(core):` / `feat(cli):` / `feat(server):` — scoped by crate
+- `feat(core):` / `feat(cli):` / `feat(server):` / `feat(quant):` — scoped by crate
 - `docs(spec):` — specification changes
 - `docs(readme):` — documentation changes
 

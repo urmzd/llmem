@@ -117,10 +117,17 @@ Under 200 lines per level. Loaded at every conversation start.
 
 ## Optional CLI
 
+The CLI uses cognitive metaphors for its commands:
+
 ```bash
 cargo install llmem-cli
-llmem init              # project memory
-llmem init --global     # global memory
-llmem add feedback <name> -d "<description>"
-llmem search "<query>"
+llmem init                                          # project memory
+llmem init --global                                 # global memory
+llmem memorize "prefer Rust for CLI tools" -t feedback  # encode to long-term memory
+llmem note "check async runtime choices"            # quick capture to inbox
+llmem learn .                                       # ingest codebase into inbox
+llmem consolidate                                   # promote inbox → long-term memory
+llmem remember "rust"                               # semantic + text search
+llmem reflect --all                                 # review memories + inbox
+llmem forget feedback_old-approach.md               # deliberately forget
 ```
