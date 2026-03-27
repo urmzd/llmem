@@ -1,0 +1,13 @@
+# Large generated data files
+code/raw/
+code/generated/*.jsonl
+memory/raw/
+memory/generated/*.jsonl
+
+# Model artifacts (tracked via releases, not git)
+models/*.onnx
+models/*.bin
+
+# Processed data (reproducible from generated/)
+code/processed/
+memory/processed/
