@@ -13,16 +13,18 @@
 
 ## Features
 
-- Two-level memory: project (`~/.llmem/{project}/`) and global (`~/.llmem/global/`)
-- Plain markdown with YAML frontmatter — human-readable, git-friendly
-- Dynamic loading — index always loaded, individual files read on-demand
-- Typed memories: user, feedback, project, reference
-- JSON-first CLI — stdout for structured JSON, stderr for UX; pipe-friendly
-- Ollama embedder built-in (`nomic-embed-text`) with pluggable `Embedder` trait
-- ANN index with HNSW and IVF-Flat implementations for fast semantic search
-- Code indexing — tree-sitter chunking for Rust, Python, JS/TS, Go
-- Hook-ready — `recall` and `learn` commands for pre/post-hook integration
-- Context switching — `llmem ctx switch` swaps project memory while keeping global resident
+- **Cognitive CLI** — commands named after memory processes: `memorize`, `remember`, `note`, `learn`, `consolidate`, `reflect`, `forget`
+- **Two-level memory** — project (`~/.llmem/{project}/`) and global (`~/.llmem/global/`)
+- **Working memory inbox** — capacity-limited staging area (default 7 items) with attention scoring; items promoted to long-term memory via `consolidate`
+- **Memory metadata** — strength, access count, last accessed, source tracking; Hebbian reinforcement on retrieval
+- **Plain markdown** with YAML frontmatter — human-readable, git-friendly
+- **Typed memories** — user, feedback, project, reference
+- **Semantic search** — Ollama embedder (`nomic-embed-text`) with HNSW/IVF-Flat ANN indices; auto-embeds on `memorize`
+- **Code ingestion** — `learn` uses tree-sitter chunking (Rust, Python, JS/TS, Go) with attention-scored promotion to inbox
+- **Consolidation** — `consolidate` promotes inbox items, decays stale memories, and re-embeds
+- **TurboQuant** — optional vector quantization (1-4 bit) for compact embedding storage
+- **JSON-first** — stdout for structured JSON, stderr for UX; pipe-friendly
+- **Context switching** — `llmem ctx switch` swaps project memory while keeping global resident
 - Works with Claude Code, Codex, Gemini, Copilot, Cursor, or any AI tool
 
 ## Install
@@ -75,11 +77,14 @@ EOF
 
 ```bash
 cargo install llmem-cli
-llmem init                                    # project memory
-llmem init --global                           # global memory
-llmem add feedback prefer-rust -d "Default to Rust for new CLI tools"
-llmem list --all                              # both levels
-llmem search "rust"
+llmem init                                          # project memory
+llmem init --global                                 # global memory
+llmem memorize "prefer Rust for CLI tools" -t feedback
+llmem note "look into async runtime choices"        # quick capture to inbox
+llmem learn .                                       # ingest codebase into inbox
+llmem consolidate                                   # promote inbox → long-term memory
+llmem remember "rust"                               # semantic + text search
+llmem reflect --all                                 # review all memories + inbox
 ```
 
 ## Usage
@@ -107,15 +112,13 @@ Project memory takes precedence over global when they conflict.
 | Command | Description |
 |---------|-------------|
 | `llmem init [--global]` | Create `~/.llmem/{project}/MEMORY.md` or global |
-| `llmem add <type> <name> -d <desc>` | Add a memory |
-| `llmem learn [--stdin]` | Upsert a memory (JSON stdin or args) |
-| `llmem recall --query <q>` | Retrieve relevant memories (pre-hook) |
-| `llmem list [--all]` | List memories |
-| `llmem search <query>` | Search by description |
-| `llmem remove <file>` | Remove a memory |
-| `llmem embed [--global]` | Sync embeddings via Ollama |
-| `llmem code index` | Index source code with tree-sitter |
-| `llmem code search <query>` | Search indexed code chunks |
+| `llmem memorize "<point>" [-t type] [-n name]` | Deliberately encode a point into long-term memory (auto-embeds) |
+| `llmem note "<point>"` | Jot a quick note into working memory inbox |
+| `llmem remember "<ask>" [--budget N] [--level both]` | Recall memories by cue — semantic search with text fallback |
+| `llmem learn [path] [--attend glob] [--capacity N]` | Ingest a codebase via tree-sitter; top chunks promoted to inbox |
+| `llmem consolidate [--dry-run]` | Promote inbox items, decay stale memories, re-embed |
+| `llmem reflect [--all] [--global]` | Introspect — review memories and inbox contents |
+| `llmem forget <file>` | Deliberately forget a memory |
 | `llmem ctx switch [<root>]` | Switch active project context |
 | `llmem ctx show` | Show active project context |
 | `llmem config init` | Create default config file |
@@ -125,6 +128,37 @@ Project memory takes precedence over global when they conflict.
 | `llmem config path` | Print config file path |
 
 All commands output JSON to stdout (`{"ok": true, "data": {...}}`).
+
+### Working Memory (Inbox)
+
+The inbox is a capacity-limited staging area modeled after human working memory (default capacity: 7). Items enter via `note` (manual) or `learn` (code ingestion) and are scored by attention:
+
+- Items are sorted by attention score; lowest-scored items are evicted at capacity
+- `consolidate` promotes inbox items to long-term memory and clears the inbox
+- Stored in `.inbox.json` alongside memory files
+
+### Consolidation
+
+`llmem consolidate` runs a sleep-like consolidation cycle:
+
+1. **Promote** — inbox items become long-term memories with type and strength
+2. **Decay** — memories not accessed within `consolidation.decay_days` (default 90) and below `protected_access_count` (default 5) are pruned
+3. **Re-embed** — all surviving memories are re-embedded for fresh semantic search
+
+Use `--dry-run` to preview what would change.
+
+### Memory Metadata
+
+Each memory file tracks cognitive metadata in its frontmatter:
+
+| Field | Description |
+|-------|-------------|
+| `strength` | Consolidation strength (increases on survival) |
+| `access_count` | Retrieval count (Hebbian reinforcement) |
+| `last_accessed` | ISO 8601 timestamp of last retrieval |
+| `created_at` | When the memory was first created |
+| `source` | How it was created: `memorize`, `note`, `learn`, `consolidation` |
+| `consolidated_from` | Original files if created via merge |
 
 ### Configuration
 
@@ -149,6 +183,21 @@ max_lines = 200
 [code]
 languages = ["rust", "python", "javascript", "go"]
 max_chunk_lines = 100
+
+[inbox]
+capacity = 7
+
+[consolidation]
+decay_days = 90
+merge_threshold = 0.85
+protected_access_count = 5
+max_memories = 200
+
+[quantization]
+enabled = false
+bits = 2
+algorithm = "mse"
+temporal_weight = 0.2
 ```
 
 Use `llmem config set embedding.model all-minilm` to change values. Environment variables (`OLLAMA_HOST`, `OLLAMA_EMBED_MODEL`) override config.
