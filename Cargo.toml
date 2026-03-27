@@ -14,6 +14,7 @@ homepage = "https://github.com/urmzd/llmem"
 # Internal crates
 llmem-core = { path = "crates/llmem-core", version = "0.1.0" }
 llmem-index = { path = "crates/llmem-index", version = "0.1.0" }
+llmem-quant = { path = "crates/llmem-quant", version = "0.1.0" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
