@@ -145,6 +145,15 @@ async fn reload(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"status": "reloaded"}))
 }
 
+/// Build the router with the given state. Extracted for testability.
+fn build_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/search", get(search))
+        .route("/reload", get(reload))
+        .with_state(state)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load initial context
@@ -181,11 +190,7 @@ async fn main() -> Result<()> {
         project_root: RwLock::new(project_root),
     });
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/search", get(search))
-        .route("/reload", get(reload))
-        .with_state(state);
+    let app = build_router(state);
 
     let addr = "127.0.0.1:3179";
     println!("llmem-server listening on {addr}");
@@ -194,4 +199,136 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::extract::Request;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    fn test_state() -> Arc<AppState> {
+        Arc::new(AppState {
+            project_index: RwLock::new(None),
+            global_index: RwLock::new(None),
+            project_root: RwLock::new(None),
+        })
+    }
+
+    fn test_state_with_root(root: PathBuf) -> Arc<AppState> {
+        Arc::new(AppState {
+            project_index: RwLock::new(None),
+            global_index: RwLock::new(None),
+            project_root: RwLock::new(Some(root)),
+        })
+    }
+
+    async fn response_json(app: Router, uri: &str) -> serde_json::Value {
+        let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn health_returns_ok() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/health").await;
+
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(json["project_memories"], 0);
+        assert_eq!(json["global_memories"], 0);
+        assert!(json["active_context"].is_null());
+    }
+
+    #[tokio::test]
+    async fn health_shows_active_context() {
+        let state = test_state_with_root(PathBuf::from("/tmp/test-project"));
+        let app = build_router(state);
+        let json = response_json(app, "/health").await;
+
+        assert_eq!(json["active_context"], "/tmp/test-project");
+    }
+
+    #[tokio::test]
+    async fn search_empty_returns_empty_array() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/search?q=anything").await;
+
+        assert!(json.is_array());
+        assert_eq!(json.as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn search_finds_matching_memories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project_root = tmp.path().join("myproject");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Set HOME so llmem_core resolves dirs under our temp
+        let home = tmp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe { std::env::set_var("HOME", &home) };
+
+        let mem_dir = project_dir(&project_root);
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        // Create a MEMORY.md with entries
+        let memory_md = mem_dir.join("MEMORY.md");
+        std::fs::write(
+            &memory_md,
+            "- [prefer rust](feedback_prefer-rust.md) — use rust for CLI tools\n\
+             - [write tests](feedback_write-tests.md) — always write tests\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_root(project_root);
+        let app = build_router(state);
+
+        let json = response_json(app, "/search?q=rust").await;
+        let results = json.as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["title"], "prefer rust");
+        assert_eq!(results[0]["level"], "project");
+        assert_eq!(results[0]["score"], 1.0);
+    }
+
+    #[tokio::test]
+    async fn search_respects_top_k() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project_root = tmp.path().join("proj");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        let home = tmp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe { std::env::set_var("HOME", &home) };
+
+        let mem_dir = project_dir(&project_root);
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        // Both entries contain "test"
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [test one](feedback_test-one.md) — first test memory\n\
+             - [test two](feedback_test-two.md) — second test memory\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_root(project_root);
+        let app = build_router(state);
+
+        let json = response_json(app, "/search?q=test&top_k=1").await;
+        assert_eq!(json.as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn reload_returns_reloaded() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/reload").await;
+        assert_eq!(json["status"], "reloaded");
+    }
 }
