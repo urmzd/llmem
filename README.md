@@ -213,6 +213,15 @@ curl "http://localhost:3179/reload"  # hot-reload after context switch
 
 See the full [Specification](SPECIFICATION.md) for details on file format, dynamic loading, precedence rules, and integration guides.
 
+## Testing
+
+```bash
+just test                  # cargo test --workspace
+bash scripts/validate.sh   # full E2E validation (requires release build)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for what each test suite covers and per-crate test counts.
+
 ## Agent Skill
 
 This repo's conventions are available as portable agent skills in [`skills/`](skills/), following the [Agent Skills Specification](https://agentskills.io/specification).
