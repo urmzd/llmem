@@ -19,3 +19,9 @@ rand_distr = "0.5"
 
 [dev-dependencies]
 tempfile = { workspace = true }
+criterion = { workspace = true }
+insta = { workspace = true }
+
+[[bench]]
+name = "quant_benchmarks"
+harness = false

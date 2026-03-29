@@ -338,4 +338,55 @@ mod tests {
         let json = response_json(app, "/reload").await;
         assert_eq!(json["status"], "reloaded");
     }
+
+    #[tokio::test]
+    async fn snapshot_health_no_context() {
+        let app = build_router(test_state());
+        let mut json = response_json(app, "/health").await;
+        // Version changes between releases, redact it
+        json["version"] = serde_json::Value::String("[version]".to_string());
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_health_with_context() {
+        let state = test_state_with_root(PathBuf::from("/tmp/my-project"));
+        let app = build_router(state);
+        let mut json = response_json(app, "/health").await;
+        json["version"] = serde_json::Value::String("[version]".to_string());
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_search_with_results() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mem_dir = tmp.path().join("mem");
+        std::fs::create_dir_all(&mem_dir).unwrap();
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [prefer rust](feedback_prefer-rust.md) — use rust for CLI tools\n\
+             - [write tests](feedback_write-tests.md) — always write tests\n\
+             - [api docs](reference_api-docs.md) — REST API documentation\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_mem_dir(tmp.path().to_path_buf(), mem_dir);
+        let app = build_router(state);
+        let json = response_json(app, "/search?q=test").await;
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_search_empty() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/search?q=nothing").await;
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_reload() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/reload").await;
+        insta::assert_json_snapshot!(json);
+    }
 }

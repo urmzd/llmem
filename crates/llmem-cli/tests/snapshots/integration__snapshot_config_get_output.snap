@@ -1,0 +1,11 @@
+---
+source: crates/llmem-cli/tests/integration.rs
+expression: json
+---
+{
+  "data": {
+    "key": "embedding.model",
+    "value": "nomic-embed-text"
+  },
+  "ok": true
+}

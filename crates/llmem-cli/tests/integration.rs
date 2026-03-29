@@ -1,3 +1,4 @@
+use insta::assert_json_snapshot;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::process::Command;
@@ -447,4 +448,210 @@ fn multiple_notes_respect_capacity() {
     let (json, _) = run(&home, &["reflect", "--root", project.to_str().unwrap()]);
     // Inbox should be capped at capacity (7)
     assert!(json["data"]["inbox"]["size"].as_u64().unwrap() <= 7);
+}
+
+/// Redact dynamic fields from CLI JSON output for deterministic snapshots.
+fn redact_cli_json(mut json: Value) -> Value {
+    // Redact timestamps and paths that vary between runs
+    if let Some(data) = json.get_mut("data") {
+        // Redact path fields
+        for key in ["path", "context"] {
+            if data.get(key).is_some_and(|v| v.is_string()) {
+                data[key] = Value::String("[path]".to_string());
+            }
+        }
+        // Redact config show output (contains paths)
+        if data.get("config").is_some_and(|v| v.is_string()) {
+            data["config"] = Value::String("[toml]".to_string());
+        }
+        // Redact memories array timestamps
+        if let Some(memories) = data.get_mut("memories") {
+            if let Some(arr) = memories.as_array_mut() {
+                for mem in arr {
+                    for ts_key in ["last_accessed", "created_at", "indexed_at"] {
+                        if mem.get(ts_key).is_some_and(|v| v.is_string()) {
+                            mem[ts_key] = Value::String("[timestamp]".to_string());
+                        }
+                    }
+                }
+            }
+        }
+        // Redact inbox item timestamps
+        if let Some(inbox) = data.get_mut("inbox") {
+            if let Some(items) = inbox.get_mut("items") {
+                if let Some(arr) = items.as_array_mut() {
+                    for item in arr {
+                        if item.get("created_at").is_some_and(|v| v.is_string()) {
+                            item["created_at"] = Value::String("[timestamp]".to_string());
+                        }
+                    }
+                }
+            }
+        }
+        // Redact consolidation timestamps
+        if let Some(actions) = data.get_mut("actions") {
+            if let Some(arr) = actions.as_array_mut() {
+                for action in arr {
+                    for ts_key in ["created_at", "last_accessed"] {
+                        if action.get(ts_key).is_some_and(|v| v.is_string()) {
+                            action[ts_key] = Value::String("[timestamp]".to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    json
+}
+
+#[test]
+fn snapshot_init_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    let (json, _) = run(&home, &["init", "--root", project.to_str().unwrap()]);
+    assert_json_snapshot!(redact_cli_json(json));
+}
+
+#[test]
+fn snapshot_memorize_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    run(&home, &["init", "--root", project.to_str().unwrap()]);
+    let (json, _) = run(
+        &home,
+        &[
+            "memorize",
+            "always write tests",
+            "-t",
+            "feedback",
+            "--name",
+            "write-tests",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+    assert_json_snapshot!(json);
+}
+
+#[test]
+fn snapshot_note_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    run(&home, &["init", "--root", project.to_str().unwrap()]);
+    let (json, _) = run(
+        &home,
+        &[
+            "note",
+            "investigate logging",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+    assert_json_snapshot!(json);
+}
+
+#[test]
+fn snapshot_reflect_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    run(&home, &["init", "--root", project.to_str().unwrap()]);
+    run(
+        &home,
+        &[
+            "memorize",
+            "prefer rust",
+            "-t",
+            "feedback",
+            "--name",
+            "prefer-rust",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+    run(
+        &home,
+        &["note", "check logging", "--root", project.to_str().unwrap()],
+    );
+
+    let (json, _) = run(&home, &["reflect", "--root", project.to_str().unwrap()]);
+    assert_json_snapshot!(redact_cli_json(json));
+}
+
+#[test]
+fn snapshot_consolidate_dry_run_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    run(&home, &["init", "--root", project.to_str().unwrap()]);
+    run(
+        &home,
+        &[
+            "note",
+            "important observation",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+
+    let (json, _) = run(
+        &home,
+        &[
+            "consolidate",
+            "--dry-run",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+    assert_json_snapshot!(redact_cli_json(json));
+}
+
+#[test]
+fn snapshot_config_get_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+
+    run(&home, &["config", "init"]);
+    let (json, _) = run(&home, &["config", "get", "embedding.model"]);
+    assert_json_snapshot!(json);
+}
+
+#[test]
+fn snapshot_forget_error_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let project = tmp.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+
+    run(&home, &["init", "--root", project.to_str().unwrap()]);
+    let (json, _) = run(
+        &home,
+        &[
+            "forget",
+            "nonexistent.md",
+            "--root",
+            project.to_str().unwrap(),
+        ],
+    );
+    assert_json_snapshot!(json);
 }

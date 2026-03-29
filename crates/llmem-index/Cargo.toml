@@ -34,3 +34,9 @@ lang-go = ["dep:tree-sitter-go"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+criterion = { workspace = true }
+insta = { workspace = true }
+
+[[bench]]
+name = "ann_benchmarks"
+harness = false

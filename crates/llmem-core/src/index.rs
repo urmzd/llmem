@@ -226,4 +226,45 @@ mod tests {
         let reloaded = MemoryIndex::load(&dir).unwrap();
         assert_eq!(reloaded.entries.len(), 1);
     }
+
+    #[test]
+    fn snapshot_index_entry_line() {
+        let entry = IndexEntry {
+            title: "Rust Expertise".to_string(),
+            file: "user_rust-expertise.md".to_string(),
+            summary: "deep Rust knowledge, 10+ years experience".to_string(),
+        };
+        insta::assert_snapshot!(entry.to_line());
+    }
+
+    #[test]
+    fn snapshot_memory_index_rendered() {
+        let index = MemoryIndex {
+            entries: vec![
+                IndexEntry {
+                    title: "Prefer Rust".to_string(),
+                    file: "feedback_prefer-rust.md".to_string(),
+                    summary: "use Rust for CLI tools".to_string(),
+                },
+                IndexEntry {
+                    title: "API Docs".to_string(),
+                    file: "reference_api-docs.md".to_string(),
+                    summary: "REST API at api.example.com/docs".to_string(),
+                },
+                IndexEntry {
+                    title: "Auth Rewrite".to_string(),
+                    file: "project_auth-rewrite.md".to_string(),
+                    summary: "legal compliance requires new auth middleware".to_string(),
+                },
+            ],
+            dir: PathBuf::from("/tmp/test"),
+        };
+        let rendered: String = index
+            .entries
+            .iter()
+            .map(|e| e.to_line())
+            .collect::<Vec<_>>()
+            .join("\n");
+        insta::assert_snapshot!(rendered);
+    }
 }

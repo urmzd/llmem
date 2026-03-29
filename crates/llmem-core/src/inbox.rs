@@ -168,4 +168,42 @@ mod tests {
         assert!(inbox.is_empty());
         assert_eq!(inbox.capacity, 7);
     }
+
+    #[test]
+    fn snapshot_inbox_json() {
+        let mut inbox = Inbox::new(7);
+        inbox.push(InboxItem {
+            id: "prefer-rust".to_string(),
+            content: "Always use Rust for CLI tools".to_string(),
+            source: "note".to_string(),
+            attention_score: 0.9,
+            created_at: "2026-03-29T10:00:00Z".to_string(),
+            file_source: None,
+        });
+        inbox.push(InboxItem {
+            id: "api-handler".to_string(),
+            content: "fn handle_request() in src/server.rs".to_string(),
+            source: "learn".to_string(),
+            attention_score: 0.6,
+            created_at: "2026-03-29T11:00:00Z".to_string(),
+            file_source: Some(FileSource {
+                file: "src/server.rs".to_string(),
+                start_line: Some(42),
+                end_line: Some(80),
+                kind: "function".to_string(),
+            }),
+        });
+        inbox.last_updated = Some("2026-03-29T11:00:00Z".to_string());
+        insta::assert_json_snapshot!(inbox);
+    }
+
+    #[test]
+    fn snapshot_inbox_after_eviction() {
+        let mut inbox = Inbox::new(2);
+        inbox.push(make_item("a", 0.3));
+        inbox.push(make_item("b", 0.9));
+        inbox.push(make_item("c", 0.6));
+        // "a" should be evicted (lowest score)
+        insta::assert_json_snapshot!(inbox);
+    }
 }
