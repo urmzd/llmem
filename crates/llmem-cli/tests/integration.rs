@@ -460,6 +460,10 @@ fn redact_cli_json(mut json: Value) -> Value {
                 data[key] = Value::String("[path]".to_string());
             }
         }
+        // Redact embedded field (depends on Ollama availability)
+        if data.get("embedded").is_some() {
+            data["embedded"] = Value::String("[env-dependent]".to_string());
+        }
         // Redact config show output (contains paths)
         if data.get("config").is_some_and(|v| v.is_string()) {
             data["config"] = Value::String("[toml]".to_string());
@@ -538,6 +542,7 @@ fn snapshot_memorize_output() {
             project.to_str().unwrap(),
         ],
     );
+    let json = redact_cli_json(json);
     assert_json_snapshot!(json);
 }
 
