@@ -213,6 +213,76 @@ curl "http://localhost:3179/reload"  # hot-reload after context switch
 
 See the full [Specification](SPECIFICATION.md) for details on file format, dynamic loading, precedence rules, and integration guides.
 
+## Benchmarks
+
+<!-- embed-src src="docs/benchmarks.md" -->
+### Distance Functions
+
+| Function | 32-d | 128-d | 384-d |
+|---|---|---|---|
+| `cosine_similarity` | 12 ns | 59 ns | 207 ns |
+| `dot_product` | 4 ns | 28 ns | 120 ns |
+| `l2_distance_squared` | 5 ns | 30 ns | 125 ns |
+| `normalize` | 18 ns | 82 ns | 239 ns |
+
+### HNSW Index (500 vectors, dim=32)
+
+| Operation | Time |
+|---|---|
+| Build (500 inserts) | 32.7 ms |
+| Search top-1 | 15.2 µs |
+| Search top-10 | 15.2 µs |
+| Search top-50 | 15.2 µs |
+| Save to disk | 91 µs |
+| Load from disk | 85 µs |
+
+### IVF-Flat Index (500 vectors, dim=32)
+
+| Operation | Time |
+|---|---|
+| Train (k-means, 16 clusters) | 2.2 ms |
+| Search top-1 | 11.9 µs |
+| Search top-10 | 12.0 µs |
+| Search top-50 | 12.1 µs |
+| Save to disk | 66 µs |
+| Load from disk | 57 µs |
+
+### TurboQuant MSE (dim=128)
+
+| Bit-width | Quantize | Dequantize |
+|---|---|---|
+| 1-bit | 3.9 µs | 991 ns |
+| 2-bit | 3.9 µs | 988 ns |
+| 3-bit | 3.9 µs | 997 ns |
+| 4-bit | 4.1 µs | 998 ns |
+
+### TurboQuant Prod (dim=128)
+
+| Bit-width | Quantize | Dequantize | IP Estimate |
+|---|---|---|---|
+| 2-bit | 116 µs | 141 µs | 111 µs |
+| 3-bit | 115 µs | 111 µs | 111 µs |
+| 4-bit | 115 µs | 111 µs | 112 µs |
+
+### Bit Packing
+
+| Operation | 128x2b | 384x2b | 384x4b |
+|---|---|---|---|
+| Pack | 161 ns | 539 ns | 264 ns |
+| Unpack | 90 ns | 270 ns | 241 ns |
+
+> Measured on Apple Silicon (M-series) with `cargo bench`. Run `cargo bench` to reproduce.
+<!-- /embed-src -->
+
+## Testing
+
+```bash
+just test                  # cargo test --workspace
+bash scripts/validate.sh   # full E2E validation (requires release build)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#testing) for what each test suite covers and per-crate test counts.
+
 ## Agent Skill
 
 This repo's conventions are available as portable agent skills in [`skills/`](skills/), following the [Agent Skills Specification](https://agentskills.io/specification).

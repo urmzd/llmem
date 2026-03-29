@@ -22,3 +22,4 @@ ureq = { version = "3", features = ["json"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+insta = { workspace = true }

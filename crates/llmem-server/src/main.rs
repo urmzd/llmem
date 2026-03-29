@@ -13,7 +13,10 @@ use std::sync::{Arc, RwLock};
 struct AppState {
     project_index: RwLock<Option<HnswIndex>>,
     global_index: RwLock<Option<HnswIndex>>,
+    /// The original project root path (for display in /health).
     project_root: RwLock<Option<PathBuf>>,
+    /// Resolved project memory directory (config-derived from project_root).
+    project_mem_dir: RwLock<Option<PathBuf>>,
 }
 
 #[derive(Deserialize)]
@@ -107,8 +110,8 @@ async fn search(
     let include_project = params.level != "global";
     let include_global = params.level != "project";
 
-    if include_project && let Some(root) = state.project_root.read().ok().and_then(|r| r.clone()) {
-        let dir = project_dir(&root);
+    if include_project && let Some(dir) = state.project_mem_dir.read().ok().and_then(|d| d.clone())
+    {
         results.extend(search_level(&dir, "project"));
     }
 
@@ -128,11 +131,16 @@ async fn reload(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
             && let Ok(ctx) = std::fs::read_to_string(&ctx_file)
         {
             let root = PathBuf::from(ctx.trim());
+            let mem_dir = project_dir(&root);
+
             if let Ok(mut pr) = state.project_root.write() {
-                *pr = Some(root.clone());
+                *pr = Some(root);
+            }
+            if let Ok(mut pd) = state.project_mem_dir.write() {
+                *pd = Some(mem_dir.clone());
             }
 
-            let hnsw_path = project_dir(&root).join(".index.hnsw");
+            let hnsw_path = mem_dir.join(".index.hnsw");
             if hnsw_path.exists()
                 && let Ok(idx) = HnswIndex::load_from(&hnsw_path)
                 && let Ok(mut pi) = state.project_index.write()
@@ -145,10 +153,20 @@ async fn reload(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"status": "reloaded"}))
 }
 
+/// Build the router with the given state. Extracted for testability.
+fn build_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/search", get(search))
+        .route("/reload", get(reload))
+        .with_state(state)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load initial context
     let mut project_root = None;
+    let mut project_mem_dir = None;
     let mut project_hnsw = None;
     let mut global_hnsw = None;
 
@@ -159,11 +177,13 @@ async fn main() -> Result<()> {
             && let Ok(ctx) = std::fs::read_to_string(&ctx_file)
         {
             let root = PathBuf::from(ctx.trim());
-            let hnsw_path = project_dir(&root).join(".index.hnsw");
+            let mem_dir = project_dir(&root);
+            let hnsw_path = mem_dir.join(".index.hnsw");
             if hnsw_path.exists() {
                 project_hnsw = HnswIndex::load_from(&hnsw_path).ok();
             }
             project_root = Some(root);
+            project_mem_dir = Some(mem_dir);
         }
     }
 
@@ -179,13 +199,10 @@ async fn main() -> Result<()> {
         project_index: RwLock::new(project_hnsw),
         global_index: RwLock::new(global_hnsw),
         project_root: RwLock::new(project_root),
+        project_mem_dir: RwLock::new(project_mem_dir),
     });
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/search", get(search))
-        .route("/reload", get(reload))
-        .with_state(state);
+    let app = build_router(state);
 
     let addr = "127.0.0.1:3179";
     println!("llmem-server listening on {addr}");
@@ -194,4 +211,182 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::extract::Request;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    fn test_state() -> Arc<AppState> {
+        Arc::new(AppState {
+            project_index: RwLock::new(None),
+            global_index: RwLock::new(None),
+            project_root: RwLock::new(None),
+            project_mem_dir: RwLock::new(None),
+        })
+    }
+
+    fn test_state_with_root(root: PathBuf) -> Arc<AppState> {
+        Arc::new(AppState {
+            project_index: RwLock::new(None),
+            global_index: RwLock::new(None),
+            project_root: RwLock::new(Some(root)),
+            project_mem_dir: RwLock::new(None),
+        })
+    }
+
+    fn test_state_with_mem_dir(root: PathBuf, mem_dir: PathBuf) -> Arc<AppState> {
+        Arc::new(AppState {
+            project_index: RwLock::new(None),
+            global_index: RwLock::new(None),
+            project_root: RwLock::new(Some(root)),
+            project_mem_dir: RwLock::new(Some(mem_dir)),
+        })
+    }
+
+    async fn response_json(app: Router, uri: &str) -> serde_json::Value {
+        let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn health_returns_ok() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/health").await;
+
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(json["project_memories"], 0);
+        assert_eq!(json["global_memories"], 0);
+        assert!(json["active_context"].is_null());
+    }
+
+    #[tokio::test]
+    async fn health_shows_active_context() {
+        let state = test_state_with_root(PathBuf::from("/tmp/test-project"));
+        let app = build_router(state);
+        let json = response_json(app, "/health").await;
+
+        assert_eq!(json["active_context"], "/tmp/test-project");
+    }
+
+    #[tokio::test]
+    async fn search_empty_returns_empty_array() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/search?q=anything").await;
+
+        assert!(json.is_array());
+        assert_eq!(json.as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn search_finds_matching_memories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project_root = tmp.path().join("myproject");
+        let mem_dir = tmp.path().join("mem");
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [prefer rust](feedback_prefer-rust.md) — use rust for CLI tools\n\
+             - [write tests](feedback_write-tests.md) — always write tests\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_mem_dir(project_root, mem_dir);
+        let app = build_router(state);
+
+        let json = response_json(app, "/search?q=rust").await;
+        let results = json.as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["title"], "prefer rust");
+        assert_eq!(results[0]["level"], "project");
+        assert_eq!(results[0]["score"], 1.0);
+    }
+
+    #[tokio::test]
+    async fn search_respects_top_k() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project_root = tmp.path().join("proj");
+        let mem_dir = tmp.path().join("mem");
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [test one](feedback_test-one.md) — first test memory\n\
+             - [test two](feedback_test-two.md) — second test memory\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_mem_dir(project_root, mem_dir);
+        let app = build_router(state);
+
+        let json = response_json(app, "/search?q=test&top_k=1").await;
+        assert_eq!(json.as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn reload_returns_reloaded() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/reload").await;
+        assert_eq!(json["status"], "reloaded");
+    }
+
+    #[tokio::test]
+    async fn snapshot_health_no_context() {
+        let app = build_router(test_state());
+        let mut json = response_json(app, "/health").await;
+        // Version changes between releases, redact it
+        json["version"] = serde_json::Value::String("[version]".to_string());
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_health_with_context() {
+        let state = test_state_with_root(PathBuf::from("/tmp/my-project"));
+        let app = build_router(state);
+        let mut json = response_json(app, "/health").await;
+        json["version"] = serde_json::Value::String("[version]".to_string());
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_search_with_results() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mem_dir = tmp.path().join("mem");
+        std::fs::create_dir_all(&mem_dir).unwrap();
+        std::fs::write(
+            mem_dir.join("MEMORY.md"),
+            "- [prefer rust](feedback_prefer-rust.md) — use rust for CLI tools\n\
+             - [write tests](feedback_write-tests.md) — always write tests\n\
+             - [api docs](reference_api-docs.md) — REST API documentation\n",
+        )
+        .unwrap();
+
+        let state = test_state_with_mem_dir(tmp.path().to_path_buf(), mem_dir);
+        let app = build_router(state);
+        let json = response_json(app, "/search?q=test").await;
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_search_empty() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/search?q=nothing").await;
+        insta::assert_json_snapshot!(json);
+    }
+
+    #[tokio::test]
+    async fn snapshot_reload() {
+        let app = build_router(test_state());
+        let json = response_json(app, "/reload").await;
+        insta::assert_json_snapshot!(json);
+    }
 }

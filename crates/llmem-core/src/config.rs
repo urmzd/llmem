@@ -376,4 +376,13 @@ mod tests {
         let expanded = expand_tilde("~/.llmem");
         assert!(!expanded.to_string_lossy().starts_with("~"));
     }
+
+    #[test]
+    fn snapshot_default_config_toml() {
+        let mut config = Config::default();
+        // Use a fixed root so the snapshot is deterministic
+        config.storage.root = "~/.llmem".to_string();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        insta::assert_snapshot!(toml_str);
+    }
 }

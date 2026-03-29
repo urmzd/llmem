@@ -194,4 +194,51 @@ Use open standards.
         let result = MemoryFile::parse("no frontmatter here", "bad.md");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn snapshot_memory_file_markdown() {
+        let mem = MemoryFile {
+            frontmatter: Frontmatter {
+                name: "prefer-rust".to_string(),
+                description: "Use Rust for CLI tools".to_string(),
+                memory_type: MemoryType::Feedback,
+                created_at: Some("2026-03-01T00:00:00Z".to_string()),
+                last_accessed: Some("2026-03-29T12:00:00Z".to_string()),
+                access_count: 5,
+                strength: 1.5,
+                consolidated_from: None,
+                source: Some("memorize".to_string()),
+            },
+            body: "Always prefer Rust for CLI tools.\n\n**Why:** Performance and safety.\n\n**How to apply:** Default to Rust for new CLIs.".to_string(),
+        };
+        insta::assert_snapshot!(mem.to_markdown());
+    }
+
+    #[test]
+    fn snapshot_memory_file_filename() {
+        let mem = MemoryFile {
+            frontmatter: Frontmatter {
+                name: "api-endpoint".to_string(),
+                description: "REST API docs".to_string(),
+                memory_type: MemoryType::Reference,
+                ..Default::default()
+            },
+            body: String::new(),
+        };
+        insta::assert_snapshot!(mem.filename(), @"reference_api-endpoint.md");
+    }
+
+    #[test]
+    fn snapshot_frontmatter_yaml() {
+        let fm = Frontmatter {
+            name: "merge-freeze".to_string(),
+            description: "Merge freeze for mobile release".to_string(),
+            memory_type: MemoryType::Project,
+            created_at: Some("2026-03-25T00:00:00Z".to_string()),
+            strength: 1.0,
+            source: Some("note".to_string()),
+            ..Default::default()
+        };
+        insta::assert_yaml_snapshot!(fm);
+    }
 }

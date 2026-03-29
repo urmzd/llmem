@@ -1,0 +1,7 @@
+---
+source: crates/llmem-server/src/main.rs
+expression: json
+---
+{
+  "status": "reloaded"
+}
