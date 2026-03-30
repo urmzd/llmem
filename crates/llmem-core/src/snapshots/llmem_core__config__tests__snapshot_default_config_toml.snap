@@ -6,9 +6,8 @@ expression: toml_str
 root = "~/.llmem"
 
 [embedding]
-provider = "ollama"
-host = "http://localhost:11434"
-model = "nomic-embed-text"
+provider = "fastembed"
+model = "all-MiniLM-L6-v2"
 
 [recall]
 budget = 2000
@@ -18,6 +17,8 @@ priority = [
     "user",
     "reference",
 ]
+expand_refs = true
+max_ref_expansions = 3
 
 [index]
 max_lines = 200
