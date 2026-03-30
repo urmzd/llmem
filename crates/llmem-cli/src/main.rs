@@ -12,7 +12,7 @@ use std::path::PathBuf;
 // ── TUI ────────────────────────────────────────────────────────────────────
 
 fn is_tty() -> bool {
-    io::stderr().is_terminal()
+    std::env::var("LLMEM_TUI").is_ok() || io::stderr().is_terminal()
 }
 
 mod tui {
