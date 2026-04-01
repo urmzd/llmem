@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 (2026-04-01)
+
+### Features
+
+- fastembed migration, daemon mode, TUI output, and associative linking (#4) ([3ca2c39](https://github.com/urmzd/llmem/commit/3ca2c392f3158abe03cd0f36d8068106dab50991))
+
+### Miscellaneous
+
+- update sr action from v2 to v3 ([3610251](https://github.com/urmzd/llmem/commit/36102512cc7dbf7fd146565d75f450df8df5714c))
+- lowercase justfile with expanded recipes and add crates.io badge ([3295794](https://github.com/urmzd/llmem/commit/329579484197b3cf1b294e8b8a75df27172e0a67))
+- standardize CI/CD — clean sr.yaml, justfile recipes, embed-src sync, teasr demo ([83dc92d](https://github.com/urmzd/llmem/commit/83dc92d755f23d19c8e88c964ae803056c440213))
+
+[Full Changelog](https://github.com/urmzd/llmem/compare/v0.3.0...v0.4.0)
+
+
 ## 0.3.0 (2026-03-29)
 
 ### Features
