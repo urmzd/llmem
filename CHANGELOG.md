@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.2 (2026-04-02)
+
+### Bug Fixes
+
+- **ci**: drop musl targets from build matrix ([1cc06c8](https://github.com/urmzd/llmem/commit/1cc06c8c7990dc9445d8bb25aa4e7be7f8786e3d))
+
+[Full Changelog](https://github.com/urmzd/llmem/compare/v0.4.1...v0.4.2)
+
+
 ## 0.4.1 (2026-04-01)
 
 ### Bug Fixes
