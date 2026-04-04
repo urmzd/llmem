@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod chunk;
 pub mod config;
 pub mod distance;
 pub mod embed;
@@ -9,6 +10,7 @@ pub mod memory;
 pub mod temporal;
 
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
+pub use chunk::{Chunk, ChunkingStrategy};
 pub use config::Config;
 pub use embed::{Embedder, EmbeddingEntry, EmbeddingStore, FastEmbedder};
 pub use error::Error;
