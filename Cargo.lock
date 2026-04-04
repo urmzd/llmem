@@ -1260,7 +1260,7 @@ checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
 name = "llmem"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "llmem-core"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "criterion",
  "dirs",
@@ -1292,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "llmem-index"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "criterion",
  "ignore",
@@ -1311,7 +1311,7 @@ dependencies = [
 
 [[package]]
 name = "llmem-quant"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "criterion",
  "insta",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "llmem-server"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "axum",
