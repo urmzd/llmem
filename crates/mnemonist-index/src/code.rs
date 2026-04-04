@@ -3,96 +3,216 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
-use mnemonist_core::Error;
-use tree_sitter::{Language, Parser};
+use mnemonist_core::{Chunk, ChunkingStrategy, Error};
 
 use crate::AnnIndex;
 
-/// A chunk of source code extracted via tree-sitter.
-#[derive(Debug, Clone)]
-pub struct CodeChunk {
-    /// Relative file path from project root.
-    pub file: String,
-    /// Start line (1-indexed).
-    pub start_line: usize,
-    /// End line (1-indexed).
-    pub end_line: usize,
-    /// The source code content.
-    pub content: String,
-    /// The kind of syntax node (e.g., "function_item", "class_definition").
-    pub kind: String,
-    /// Optional name (function/class name).
-    pub name: Option<String>,
+/// Default max lines per chunk.
+const DEFAULT_MAX_LINES: usize = 100;
+/// Default min lines to bother creating a chunk.
+const DEFAULT_MIN_LINES: usize = 3;
+/// Default overlap in lines between consecutive chunks.
+const DEFAULT_OVERLAP: usize = 10;
+
+// ---------------------------------------------------------------------------
+// Chunking strategies
+// ---------------------------------------------------------------------------
+
+/// Splits on blank-line boundaries (paragraphs / function gaps).
+///
+/// Natural for both prose (paragraphs) and code (functions separated by blank
+/// lines). Adjacent small paragraphs are merged up to `max_lines`; oversized
+/// paragraphs are split with `overlap`.
+pub struct ParagraphChunking {
+    pub max_lines: usize,
+    pub min_lines: usize,
+    pub overlap: usize,
 }
 
-impl CodeChunk {
-    /// A unique ID for this chunk.
-    pub fn id(&self) -> String {
-        format!("{}:{}:{}", self.file, self.start_line, self.end_line)
+impl Default for ParagraphChunking {
+    fn default() -> Self {
+        Self {
+            max_lines: DEFAULT_MAX_LINES,
+            min_lines: DEFAULT_MIN_LINES,
+            overlap: DEFAULT_OVERLAP,
+        }
     }
 }
+
+impl ChunkingStrategy for ParagraphChunking {
+    fn chunk(&self, content: &str, file: &str) -> Vec<Chunk> {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() < self.min_lines {
+            return Vec::new();
+        }
+
+        // Split into paragraphs at blank lines.
+        let mut paragraphs: Vec<(usize, usize)> = Vec::new(); // (start, end) 0-indexed
+        let mut start = 0;
+        while start < lines.len() {
+            // Skip leading blank lines.
+            if lines[start].trim().is_empty() {
+                start += 1;
+                continue;
+            }
+            let mut end = start;
+            while end + 1 < lines.len() && !lines[end + 1].trim().is_empty() {
+                end += 1;
+            }
+            paragraphs.push((start, end));
+            start = end + 1;
+        }
+
+        // Merge small paragraphs, split large ones.
+        let mut chunks = Vec::new();
+        let mut buf_start: Option<usize> = None;
+        let mut buf_end: usize = 0;
+
+        for &(ps, pe) in &paragraphs {
+            let para_lines = pe - ps + 1;
+
+            // If this paragraph alone exceeds max, flush buffer then split it.
+            if para_lines > self.max_lines {
+                // Flush accumulated buffer first.
+                if let Some(bs) = buf_start {
+                    push_chunk(&mut chunks, &lines, file, bs, buf_end);
+                    buf_start = None;
+                }
+                // Split the oversized paragraph with overlap.
+                let mut s = ps;
+                while s <= pe {
+                    let e = (s + self.max_lines - 1).min(pe);
+                    push_chunk(&mut chunks, &lines, file, s, e);
+                    if e == pe {
+                        break;
+                    }
+                    s = (e + 1).saturating_sub(self.overlap);
+                }
+                continue;
+            }
+
+            match buf_start {
+                None => {
+                    buf_start = Some(ps);
+                    buf_end = pe;
+                }
+                Some(bs) => {
+                    let merged_lines = pe - bs + 1;
+                    if merged_lines <= self.max_lines {
+                        // Merge into buffer.
+                        buf_end = pe;
+                    } else {
+                        // Flush buffer, start new.
+                        push_chunk(&mut chunks, &lines, file, bs, buf_end);
+                        buf_start = Some(ps);
+                        buf_end = pe;
+                    }
+                }
+            }
+        }
+
+        // Flush remaining buffer.
+        if let Some(bs) = buf_start {
+            let line_count = buf_end - bs + 1;
+            if line_count >= self.min_lines {
+                push_chunk(&mut chunks, &lines, file, bs, buf_end);
+            }
+        }
+
+        chunks
+    }
+}
+
+/// Fixed-size line windows with optional overlap.
+pub struct FixedLineChunking {
+    pub chunk_size: usize,
+    pub overlap: usize,
+    pub min_lines: usize,
+}
+
+impl Default for FixedLineChunking {
+    fn default() -> Self {
+        Self {
+            chunk_size: DEFAULT_MAX_LINES,
+            overlap: DEFAULT_OVERLAP,
+            min_lines: DEFAULT_MIN_LINES,
+        }
+    }
+}
+
+impl ChunkingStrategy for FixedLineChunking {
+    fn chunk(&self, content: &str, file: &str) -> Vec<Chunk> {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() < self.min_lines {
+            return Vec::new();
+        }
+        let step = self.chunk_size.saturating_sub(self.overlap).max(1);
+        let mut chunks = Vec::new();
+        let mut start = 0;
+        while start < lines.len() {
+            let end = (start + self.chunk_size).min(lines.len());
+            let content = lines[start..end].join("\n");
+            if !content.trim().is_empty() {
+                chunks.push(Chunk {
+                    file: file.to_string(),
+                    start_line: start + 1,
+                    end_line: end,
+                    content,
+                });
+            }
+            let next = start + step;
+            if next <= start || end == lines.len() {
+                break;
+            }
+            start = next;
+        }
+        chunks
+    }
+}
+
+fn push_chunk(chunks: &mut Vec<Chunk>, lines: &[&str], file: &str, start: usize, end: usize) {
+    let content = lines[start..=end].join("\n");
+    if !content.trim().is_empty() {
+        chunks.push(Chunk {
+            file: file.to_string(),
+            start_line: start + 1,
+            end_line: end + 1,
+            content,
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CodeIndex — walks a project, chunks files, builds ANN
+// ---------------------------------------------------------------------------
 
 /// A search result from code search.
 #[derive(Debug, Clone)]
 pub struct CodeSearchHit {
-    pub chunk: CodeChunk,
+    pub chunk: Chunk,
     pub score: f32,
 }
 
-/// Indexes source code using tree-sitter for semantic chunking.
-pub struct CodeIndex {
+/// Indexes source files using a pluggable [`ChunkingStrategy`].
+pub struct CodeIndex<'a> {
     root: PathBuf,
-    chunks: Vec<CodeChunk>,
-    chunk_map: HashMap<String, usize>, // id -> index into chunks
+    strategy: &'a dyn ChunkingStrategy,
+    chunks: Vec<Chunk>,
+    chunk_map: HashMap<String, usize>,
 }
 
-/// Tree-sitter node kinds that represent meaningful code boundaries.
-/// These are the nodes we extract as chunks.
-const CHUNK_NODE_KINDS: &[&str] = &[
-    // Rust
-    "function_item",
-    "impl_item",
-    "struct_item",
-    "enum_item",
-    "trait_item",
-    "mod_item",
-    "const_item",
-    "static_item",
-    "type_item",
-    // Python
-    "function_definition",
-    "class_definition",
-    "decorated_definition",
-    // JavaScript/TypeScript
-    "function_declaration",
-    "class_declaration",
-    "method_definition",
-    "arrow_function",
-    "export_statement",
-    "lexical_declaration",
-    // Go
-    "function_declaration",
-    "method_declaration",
-    "type_declaration",
-];
-
-/// Max lines for a single chunk before splitting.
-const MAX_CHUNK_LINES: usize = 100;
-
-/// Min lines to bother creating a chunk.
-const MIN_CHUNK_LINES: usize = 3;
-
-impl CodeIndex {
-    /// Create a new empty code index for a project root.
-    pub fn new(root: &Path) -> Self {
+impl<'a> CodeIndex<'a> {
+    /// Create a new code index for a project root with the given chunking strategy.
+    pub fn new(root: &Path, strategy: &'a dyn ChunkingStrategy) -> Self {
         Self {
             root: root.to_path_buf(),
+            strategy,
             chunks: Vec::new(),
             chunk_map: HashMap::new(),
         }
     }
 
-    /// Walk the project and extract chunks from all supported source files.
+    /// Walk the project and extract chunks from all text files.
     pub fn index(&mut self) -> Result<usize, Error> {
         self.chunks.clear();
         self.chunk_map.clear();
@@ -111,12 +231,6 @@ impl CodeIndex {
                 continue;
             }
 
-            let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-                continue;
-            };
-
-            let language = language_for_ext(ext);
-
             let content = match fs::read_to_string(path) {
                 Ok(c) => c,
                 Err(_) => continue, // skip binary files
@@ -128,11 +242,7 @@ impl CodeIndex {
                 .to_string_lossy()
                 .to_string();
 
-            let file_chunks = match language {
-                Some(lang) => extract_chunks(&content, &rel_path, lang)?,
-                None => extract_plain_chunks(&content, &rel_path),
-            };
-            for chunk in file_chunks {
+            for chunk in self.strategy.chunk(&content, &rel_path) {
                 let id = chunk.id();
                 let idx = self.chunks.len();
                 self.chunks.push(chunk);
@@ -144,12 +254,12 @@ impl CodeIndex {
     }
 
     /// Get all chunks.
-    pub fn chunks(&self) -> &[CodeChunk] {
+    pub fn chunks(&self) -> &[Chunk] {
         &self.chunks
     }
 
     /// Get a chunk by ID.
-    pub fn get(&self, id: &str) -> Option<&CodeChunk> {
+    pub fn get(&self, id: &str) -> Option<&Chunk> {
         self.chunk_map.get(id).map(|&idx| &self.chunks[idx])
     }
 
@@ -188,207 +298,85 @@ impl CodeIndex {
     }
 }
 
-/// Extract semantic chunks from source code using tree-sitter.
-fn extract_chunks(source: &str, file: &str, language: Language) -> Result<Vec<CodeChunk>, Error> {
-    let mut parser = Parser::new();
-    parser
-        .set_language(&language)
-        .map_err(|e| Error::EmbeddingFormat(format!("tree-sitter language error: {e}")))?;
-
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| Error::EmbeddingFormat(format!("failed to parse {file}")))?;
-
-    let mut chunks = Vec::new();
-    let lines: Vec<&str> = source.lines().collect();
-
-    collect_chunks(tree.root_node(), source, file, &lines, &mut chunks);
-
-    // If no semantic chunks found, fall back to line-based chunking
-    if chunks.is_empty() && lines.len() >= MIN_CHUNK_LINES {
-        for start in (0..lines.len()).step_by(MAX_CHUNK_LINES) {
-            let end = (start + MAX_CHUNK_LINES).min(lines.len());
-            let content = lines[start..end].join("\n");
-            if content.trim().is_empty() {
-                continue;
-            }
-            chunks.push(CodeChunk {
-                file: file.to_string(),
-                start_line: start + 1,
-                end_line: end,
-                content,
-                kind: "block".to_string(),
-                name: None,
-            });
-        }
-    }
-
-    Ok(chunks)
-}
-
-/// Recursively collect semantic chunks from the tree.
-fn collect_chunks(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    file: &str,
-    lines: &[&str],
-    chunks: &mut Vec<CodeChunk>,
-) {
-    let kind = node.kind();
-
-    if CHUNK_NODE_KINDS.contains(&kind) {
-        let start_line = node.start_position().row;
-        let end_line = node.end_position().row;
-        let line_count = end_line - start_line + 1;
-
-        if line_count >= MIN_CHUNK_LINES {
-            let content = if end_line < lines.len() {
-                lines[start_line..=end_line].join("\n")
-            } else {
-                node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
-            };
-
-            // Try to extract name from first named child
-            let name = node
-                .child_by_field_name("name")
-                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-                .map(|s| s.to_string());
-
-            // If the chunk is too large, split it
-            if line_count > MAX_CHUNK_LINES {
-                for sub_start in (start_line..=end_line).step_by(MAX_CHUNK_LINES) {
-                    let sub_end = (sub_start + MAX_CHUNK_LINES - 1).min(end_line);
-                    let sub_content = if sub_end < lines.len() {
-                        lines[sub_start..=sub_end].join("\n")
-                    } else {
-                        continue;
-                    };
-                    chunks.push(CodeChunk {
-                        file: file.to_string(),
-                        start_line: sub_start + 1,
-                        end_line: sub_end + 1,
-                        content: sub_content,
-                        kind: kind.to_string(),
-                        name: name.clone(),
-                    });
-                }
-            } else {
-                chunks.push(CodeChunk {
-                    file: file.to_string(),
-                    start_line: start_line + 1,
-                    end_line: end_line + 1,
-                    content,
-                    kind: kind.to_string(),
-                    name,
-                });
-            }
-
-            return; // Don't recurse into children of a chunk node
-        }
-    }
-
-    // Recurse into children
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_chunks(child, source, file, lines, chunks);
-    }
-}
-
-/// Extract chunks from a plain-text file using line-based chunking.
-/// Used as a fallback for file types without tree-sitter grammar support.
-fn extract_plain_chunks(source: &str, file: &str) -> Vec<CodeChunk> {
-    let lines: Vec<&str> = source.lines().collect();
-    if lines.len() < MIN_CHUNK_LINES {
-        return Vec::new();
-    }
-    let mut chunks = Vec::new();
-    for start in (0..lines.len()).step_by(MAX_CHUNK_LINES) {
-        let end = (start + MAX_CHUNK_LINES).min(lines.len());
-        let content = lines[start..end].join("\n");
-        if content.trim().is_empty() {
-            continue;
-        }
-        chunks.push(CodeChunk {
-            file: file.to_string(),
-            start_line: start + 1,
-            end_line: end,
-            content,
-            kind: "block".to_string(),
-            name: None,
-        });
-    }
-    chunks
-}
-
-/// Map file extension to tree-sitter language.
-fn language_for_ext(ext: &str) -> Option<Language> {
-    match ext {
-        #[cfg(feature = "lang-rust")]
-        "rs" => Some(tree_sitter_rust::LANGUAGE.into()),
-        #[cfg(feature = "lang-python")]
-        "py" => Some(tree_sitter_python::LANGUAGE.into()),
-        #[cfg(feature = "lang-javascript")]
-        "js" | "jsx" | "mjs" | "cjs" => Some(tree_sitter_javascript::LANGUAGE.into()),
-        #[cfg(feature = "lang-javascript")]
-        "ts" | "tsx" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-        #[cfg(feature = "lang-go")]
-        "go" => Some(tree_sitter_go::LANGUAGE.into()),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn extract_rust_chunks() {
-        let source = r#"
+    fn paragraph_chunking_splits_on_blank_lines() {
+        let source = "\
 fn hello() {
-    println!("hello");
+    println!(\"hello\");
 }
 
 fn world() {
-    println!("world");
+    println!(\"world\");
 }
 
 struct Foo {
     bar: i32,
     baz: String,
-}
-"#;
-        let lang: Language = tree_sitter_rust::LANGUAGE.into();
-        let chunks = extract_chunks(source, "test.rs", lang).unwrap();
-        assert!(
-            chunks.len() >= 2,
-            "expected at least 2 chunks, got {}",
-            chunks.len()
-        );
+}";
+        let strategy = ParagraphChunking {
+            max_lines: 100,
+            min_lines: 2,
+            ..Default::default()
+        };
+        let chunks = strategy.chunk(source, "test.rs");
+        // Three paragraphs merged into one since total < max_lines
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.contains("hello"));
+        assert!(chunks[0].content.contains("Foo"));
+    }
 
-        let hello = chunks.iter().find(|c| c.name.as_deref() == Some("hello"));
-        assert!(hello.is_some(), "should find hello function");
+    #[test]
+    fn paragraph_chunking_splits_large_blocks() {
+        let strategy = ParagraphChunking {
+            max_lines: 5,
+            min_lines: 2,
+            overlap: 1,
+        };
+        // 10 non-blank lines in a single paragraph
+        let source = (0..10)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let chunks = strategy.chunk(&source, "big.txt");
+        assert!(chunks.len() >= 2, "should split into multiple chunks");
+    }
+
+    #[test]
+    fn fixed_line_chunking_with_overlap() {
+        let source = (0..20)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let strategy = FixedLineChunking {
+            chunk_size: 10,
+            overlap: 2,
+            min_lines: 1,
+        };
+        let chunks = strategy.chunk(&source, "test.txt");
+        assert!(chunks.len() >= 2);
+        // Second chunk should start before the end of the first
+        assert!(chunks[1].start_line < chunks[0].end_line + 1);
     }
 
     #[test]
     fn chunk_id_format() {
-        let chunk = CodeChunk {
+        let chunk = Chunk {
             file: "src/main.rs".into(),
             start_line: 10,
             end_line: 25,
             content: String::new(),
-            kind: "function_item".into(),
-            name: Some("main".into()),
         };
         assert_eq!(chunk.id(), "src/main.rs:10:25");
     }
 
     #[test]
-    fn language_mapping() {
-        assert!(language_for_ext("rs").is_some());
-        assert!(language_for_ext("py").is_some());
-        assert!(language_for_ext("js").is_some());
-        assert!(language_for_ext("ts").is_some());
-        assert!(language_for_ext("go").is_some());
-        assert!(language_for_ext("txt").is_none());
+    fn skips_tiny_files() {
+        let strategy = ParagraphChunking::default();
+        let chunks = strategy.chunk("hi", "tiny.txt");
+        assert!(chunks.is_empty());
     }
 }

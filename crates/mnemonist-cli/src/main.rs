@@ -368,6 +368,7 @@ struct MemoryOut {
     name: String,
     description: String,
     body: String,
+    score: f32,
 }
 
 /// Auto-generate a kebab-case name from free text.
@@ -591,15 +592,16 @@ fn run(cli: Cli) -> Result<()> {
                 // Temporal re-ranking: blend cosine similarity with temporal score
                 let lambda = Config::load().quantization.temporal_weight as f64;
                 let now_utc = chrono::Utc::now();
-                matched.sort_by(|a, b| {
-                    let score_a = temporal_blend(&a.0, &a.1, a.2, lambda, &now_utc);
-                    let score_b = temporal_blend(&b.0, &b.1, b.2, lambda, &now_utc);
-                    score_b
-                        .partial_cmp(&score_a)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
+                let mut scored: Vec<(PathBuf, IndexEntry, f32)> = matched
+                    .into_iter()
+                    .map(|(dir, entry, cosine)| {
+                        let blended = temporal_blend(&dir, &entry, cosine, lambda, &now_utc) as f32;
+                        (dir, entry, blended)
+                    })
+                    .collect();
+                scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
-                for (dir, entry, _score) in &matched {
+                for (dir, entry, score) in &scored {
                     if total_chars >= budget {
                         break;
                     }
@@ -627,6 +629,7 @@ fn run(cli: Cli) -> Result<()> {
                                     name: entry.title.clone(),
                                     description: entry.summary.clone(),
                                     body,
+                                    score: *score,
                                 });
                             }
                         }
@@ -652,6 +655,7 @@ fn run(cli: Cli) -> Result<()> {
                             name: mem.frontmatter.name.clone(),
                             description: mem.frontmatter.description.clone(),
                             body: mem.body.clone(),
+                            score: *score,
                         });
 
                         // Edge expansion: follow refs to code chunks and related memories
@@ -676,6 +680,7 @@ fn run(cli: Cli) -> Result<()> {
                                             name: ref_mem.frontmatter.name.clone(),
                                             description: format!("via {}", entry.file),
                                             body: ref_mem.body.clone(),
+                                            score: 0.0,
                                         });
                                     }
                                 } else {
@@ -707,6 +712,7 @@ fn run(cli: Cli) -> Result<()> {
                                                 name: entry.title.clone(),
                                                 description: format!("via {}", entry.file),
                                                 body,
+                                                score: 0.0,
                                             });
                                         }
                                     }
@@ -738,10 +744,11 @@ fn run(cli: Cli) -> Result<()> {
                             .collect::<String>()
                             .replace('\n', " ");
                         eprintln!(
-                            "  {DIM}{:>2}.{RESET} {tc}{:<10}{RESET} {BOLD}{}{RESET}",
+                            "  {DIM}{:>2}.{RESET} {tc}{:<10}{RESET} {BOLD}{}{RESET}  {DIM}{:.3}{RESET}",
                             i + 1,
                             m.memory_type,
-                            m.file
+                            m.file,
+                            m.score
                         );
                         eprintln!("      {DIM}{preview}{RESET}");
                     }
@@ -775,8 +782,9 @@ fn run(cli: Cli) -> Result<()> {
             let config = Config::load();
             let cap = capacity.unwrap_or(config.inbox.capacity);
 
-            // Phase 1: tree-sitter code extraction
-            let mut code_index = mnemonist_index::code::CodeIndex::new(&ingest_path);
+            // Phase 1: chunk files
+            let strategy = mnemonist_index::code::ParagraphChunking::default();
+            let mut code_index = mnemonist_index::code::CodeIndex::new(&ingest_path, &strategy);
             let chunk_count = code_index.index()?;
 
             let file_count = code_index
@@ -798,8 +806,6 @@ fn run(cli: Cli) -> Result<()> {
                     json!({
                         "id": c.id(),
                         "file": c.file,
-                        "kind": c.kind,
-                        "name": c.name,
                         "start_line": c.start_line,
                         "end_line": c.end_line,
                     })
@@ -870,39 +876,30 @@ fn run(cli: Cli) -> Result<()> {
             let mut inbox = Inbox::load(&mem_dir, cap)?;
             inbox.capacity = cap;
 
-            // Score chunks by importance heuristic:
+            // Score chunks by simple content heuristics:
             // - public items (pub, export) score higher
-            // - functions/structs score higher than misc
-            // - recently modified files score higher (approximated by order)
+            // - longer chunks score slightly higher (more context)
             for chunk in code_index.chunks() {
-                let kind_score = match chunk.kind.as_str() {
-                    "function_item" | "function_definition" => 0.8,
-                    "struct_item" | "class_definition" => 0.9,
-                    "impl_item" | "trait_item" => 0.85,
-                    "enum_item" => 0.75,
-                    _ => 0.5,
-                };
-
+                let base_score = 0.5;
                 let visibility_bonus =
                     if chunk.content.contains("pub ") || chunk.content.contains("export ") {
-                        0.1
+                        0.2
                     } else {
                         0.0
                     };
-
-                let _name_str = chunk.name.as_deref().unwrap_or("unknown");
+                let size_bonus = ((chunk.end_line - chunk.start_line) as f32 / 100.0).min(0.2);
 
                 let item = InboxItem {
                     id: chunk.id(),
                     content: chunk.content.clone(),
                     source: "learn".to_string(),
-                    attention_score: kind_score + visibility_bonus,
+                    attention_score: base_score + visibility_bonus + size_bonus,
                     created_at: now.clone(),
                     file_source: Some(mnemonist_core::FileSource {
                         file: chunk.file.clone(),
                         start_line: Some(chunk.start_line),
                         end_line: Some(chunk.end_line),
-                        kind: chunk.kind.clone(),
+                        kind: "block".to_string(),
                     }),
                 };
 
@@ -1329,8 +1326,30 @@ fn run(cli: Cli) -> Result<()> {
             let dir = resolve_dir(global, &root)?;
             let mut index = MemoryIndex::load(&dir)?;
 
-            if index.remove(&file) {
-                let path = dir.join(&file);
+            // Resolve partial names: exact → +.md → *_{name}.md → contains
+            let resolved = if index.entries.iter().any(|e| e.file == file) {
+                file.clone()
+            } else if index.entries.iter().any(|e| e.file == format!("{file}.md")) {
+                format!("{file}.md")
+            } else {
+                let suffix = format!("_{file}.md");
+                let candidates: Vec<&str> = index
+                    .entries
+                    .iter()
+                    .filter(|e| e.file.ends_with(&suffix))
+                    .map(|e| e.file.as_str())
+                    .collect();
+                match candidates.len() {
+                    1 => candidates[0].to_string(),
+                    0 => file.clone(), // fall through to "not found"
+                    _ => {
+                        anyhow::bail!("ambiguous: {} matches {:?}", file, candidates);
+                    }
+                }
+            };
+
+            if index.remove(&resolved) {
+                let path = dir.join(&resolved);
                 if path.exists() {
                     std::fs::remove_file(&path)?;
                 }
@@ -1340,14 +1359,14 @@ fn run(cli: Cli) -> Result<()> {
                 if store_path.exists()
                     && let Ok(mut store) = EmbeddingStore::load(&store_path)
                 {
-                    store.remove(&file);
+                    store.remove(&resolved);
                     let _ = store.save(&store_path);
                 }
 
                 index.save()?;
-                info!("forgot {file}");
+                info!("forgot {resolved}");
                 output_ok(json!({
-                    "file": file,
+                    "file": resolved,
                     "action": "forgotten",
                 }));
             } else {
@@ -1559,23 +1578,9 @@ fn semantic_search(
         }
     }
 
-    // Interleave memory and code hits so both layers contribute
-    let mut matched = Vec::new();
-    let mut mi = memory_hits.into_iter();
-    let mut ci = code_hits.into_iter();
-    loop {
-        let m = mi.next();
-        let c = ci.next();
-        if m.is_none() && c.is_none() {
-            break;
-        }
-        if let Some(hit) = m {
-            matched.push(hit);
-        }
-        if let Some(hit) = c {
-            matched.push(hit);
-        }
-    }
+    // Merge all hits — caller sorts by blended score
+    let mut matched = memory_hits;
+    matched.extend(code_hits);
     matched
 }
 

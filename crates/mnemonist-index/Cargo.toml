@@ -16,21 +16,6 @@ mnemonist-core = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 ignore = { workspace = true }
-tree-sitter = { workspace = true }
-
-# Tree-sitter grammars (optional features)
-tree-sitter-rust = { workspace = true, optional = true }
-tree-sitter-python = { workspace = true, optional = true }
-tree-sitter-javascript = { workspace = true, optional = true }
-tree-sitter-typescript = { workspace = true, optional = true }
-tree-sitter-go = { workspace = true, optional = true }
-
-[features]
-default = ["lang-rust", "lang-python", "lang-javascript", "lang-go"]
-lang-rust = ["dep:tree-sitter-rust"]
-lang-python = ["dep:tree-sitter-python"]
-lang-javascript = ["dep:tree-sitter-javascript", "dep:tree-sitter-typescript"]
-lang-go = ["dep:tree-sitter-go"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
