@@ -51,7 +51,7 @@ duration = 2000
 # Step 3: Quick note into working memory inbox
 [[scenes.interactions]]
 type = "type"
-text = "mnemonist note \"check async runtime choices for the server crate\""
+text = "mnemonist note \"check async runtime choices for the index crate\""
 speed = 35
 [[scenes.interactions]]
 type = "key"

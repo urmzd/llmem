@@ -40,19 +40,12 @@
 curl -fsSL https://raw.githubusercontent.com/urmzd/mnemonist/main/install.sh | bash
 ```
 
-Install the RAG server instead:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/urmzd/mnemonist/main/install.sh | bash -s -- --binary mnemonist-server
-```
-
 > Options: `--tag v0.1.0`, `--dir ~/.local/bin`, `--musl` (Linux)
 
 Or install via Cargo:
 
 ```bash
-cargo install mnemonist-cli          # CLI
-cargo install mnemonist-server       # RAG server (optional)
+cargo install mnemonist-cli
 ```
 
 ## Quick Start
@@ -203,16 +196,6 @@ temporal_weight = 0.2
 ```
 
 Use `mnemonist config set embedding.model all-MiniLM-L6-v2` to change values.
-
-### RAG Server
-
-```bash
-cargo install mnemonist-server
-mnemonist-server                      # listens on Unix socket (default)
-mnemonist-server --addr 127.0.0.1:3179  # or bind to TCP for debugging
-```
-
-Endpoints: `/health`, `/search?q=...`, `/remember?q=...&level=both`, `/reload`
 
 See the full [Specification](spec/mnemonist.md) for details on file format, dynamic loading, precedence rules, and integration guides.
 

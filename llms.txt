@@ -15,7 +15,6 @@
 - [crates/mnemonist-cli/](https://github.com/urmzd/mnemonist/blob/main/crates/mnemonist-cli/): Cognitive CLI binary
 - [crates/mnemonist-index/](https://github.com/urmzd/mnemonist/blob/main/crates/mnemonist-index/): ANN indices and tree-sitter code indexing
 - [crates/mnemonist-quant/](https://github.com/urmzd/mnemonist/blob/main/crates/mnemonist-quant/): TurboQuant vector quantization
-- [crates/mnemonist-server/](https://github.com/urmzd/mnemonist/blob/main/crates/mnemonist-server/): RAG HTTP server
 - [skills/mnemonist/SKILL.md](https://github.com/urmzd/mnemonist/blob/main/skills/mnemonist/SKILL.md): Portable agent skill
 
 ## Optional

@@ -526,41 +526,11 @@ Binary format `LMCQ` with header (magic + version + dimension + count + bit-widt
 
 See arXiv:2504.19874 for the underlying paper.
 
-## 13. RAG Server (Daemon)
-
-An optional HTTP server (`mnemonist-server`) provides warm-cache access to ANN indices.
-
-### 13.1 Transport
-
-- **Default**: Unix socket at `~/.mnemonist/mnemonist.sock`
-- **Alternative**: TCP via `--addr` flag (for debugging)
-- PID written to `~/.mnemonist/mnemonist.pid`
-- The CLI communicates with the daemon via HTTP/1.1 over Unix socket
-
-### 13.2 API
-
-| Endpoint | Method | Parameters | Description |
-|----------|--------|------------|-------------|
-| `/health` | GET | — | Status, version, memory counts, active context |
-| `/search` | GET | `q`, `level`, `top_k` | Text search over index entries |
-| `/remember` | GET | `q`, `level`, `budget`, `root` | Full retrieval with Hebbian reinforcement |
-| `/reload` | GET | `root` (optional) | Hot-reload indices; switch project context |
-
-### 13.3 State Management
-
-The server holds `RwLock`-guarded state:
-
-- HNSW indices (project + global)
-- Embedding stores (project + global)
-- Current project root and memory directory
-
-State is loaded at startup from `--root` and refreshed on `/reload`.
-
-## 14. Configuration
+## 13. Configuration
 
 All configuration is stored in `~/.mnemonist/config.toml` as a TOML file. The CLI supports dot-notation get/set (`mnemonist config get recall.budget`).
 
-### 14.1 Full Configuration Reference
+### 13.1 Full Configuration Reference
 
 ```toml
 [storage]

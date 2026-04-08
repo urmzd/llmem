@@ -19,6 +19,8 @@ priority = [
 ]
 expand_refs = true
 max_ref_expansions = 3
+min_similarity = 0.3499999940395355
+min_results = 2
 
 [index]
 max_lines = 200
@@ -31,6 +33,7 @@ languages = [
     "go",
 ]
 max_chunk_lines = 100
+exclude_patterns = []
 
 [quantization]
 enabled = false

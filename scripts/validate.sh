@@ -6,7 +6,6 @@ set -uo pipefail
 # pass/fail with timing for each operation.
 
 MNEMONIST="${MNEMONIST_BIN:-$(dirname "$0")/../target/release/mnemonist}"
-SERVER="${MNEMONIST_SERVER_BIN:-$(dirname "$0")/../target/release/mnemonist-server}"
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 BOLD="\033[1m"
@@ -243,36 +242,6 @@ ok "'myproject' in d['data']['context']" "ctx switch: set to project"
 
 run "ctx show (after)" "$MNEMONIST" ctx show
 ok "d['data']['context'] is not None" "ctx show: non-null after switch"
-
-# ── 11. Server ───────────────────────────────────────────────────────────────
-echo -e "${WHITE}  server${RESET}"
-
-"$SERVER" >/dev/null 2>&1 &
-SERVER_PID=$!
-sleep 1
-
-run "server /health" curl -sf http://127.0.0.1:3179/health
-eq "d['status']" '"ok"' "server health: status ok"
-ok "'version' in d" "server health: has version"
-
-run "server /search match" curl -sf "http://127.0.0.1:3179/search?q=rust"
-ok "len(d) >= 1" "server search: finds results"
-
-run "server /search empty" curl -sf "http://127.0.0.1:3179/search?q=xyzzy999"
-eq "len(d)" '0' "server search: empty for no match"
-
-run "server /search top_k" curl -sf "http://127.0.0.1:3179/search?q=a&top_k=1"
-ok "len(d) <= 1" "server search: respects top_k"
-
-run "server /search level" curl -sf "http://127.0.0.1:3179/search?q=rust&level=project"
-ok "all(r['level']=='project' for r in d)" "server search: level filter"
-
-run "server /reload" curl -sf http://127.0.0.1:3179/reload
-eq "d['status']" '"reloaded"' "server reload: status reloaded"
-
-kill "$SERVER_PID" 2>/dev/null || true
-wait "$SERVER_PID" 2>/dev/null || true
-SERVER_PID=""
 
 # ── Report ───────────────────────────────────────────────────────────────────
 

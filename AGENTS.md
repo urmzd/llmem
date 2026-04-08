@@ -9,8 +9,7 @@ A specification and Rust implementation defining a convention for storing AI age
 Rust workspace with four crates:
 - `mnemonist-core` — spec types, file parsing, index operations, inbox, config, embeddings
 - `mnemonist-cli` — CLI binary (`mnemonist`) with cognitive commands
-- `mnemonist-server` — RAG HTTP server for semantic search
-- `mnemonist-index` — ANN indices (HNSW, IVF-Flat) and tree-sitter code indexing
+- `mnemonist-index` — ANN indices (HNSW, IVF-Flat) and code indexing
 - `mnemonist-quant` — TurboQuant vector quantization (1-4 bit)
 
 Training pipeline in `training/` (Python): data generation, model distillation, ONNX export.
@@ -37,7 +36,7 @@ cargo run -p mnemonist-cli   # run the CLI
 ## Commit Guidelines
 
 Conventional commits via `sr commit`:
-- `feat(core):` / `feat(cli):` / `feat(server):` / `feat(quant):` — scoped by crate
+- `feat(core):` / `feat(cli):` / `feat(quant):` — scoped by crate
 - `docs(spec):` — specification changes
 - `docs(readme):` — documentation changes
 

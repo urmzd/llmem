@@ -102,6 +102,7 @@ pub struct CodeConfig {
     /// Max lines per code chunk.
     pub max_chunk_lines: usize,
     /// File name patterns to exclude from code indexing (case-insensitive prefix match).
+    /// Empty by default — rely on `recall.min_similarity` to filter irrelevant results.
     pub exclude_patterns: Vec<String>,
 }
 
@@ -218,14 +219,7 @@ impl Default for CodeConfig {
                 "go".to_string(),
             ],
             max_chunk_lines: 100,
-            exclude_patterns: vec![
-                "LICENSE".to_string(),
-                "LICENCE".to_string(),
-                "CODE_OF_CONDUCT".to_string(),
-                "CONTRIBUTING".to_string(),
-                "SECURITY".to_string(),
-                "CODEOWNERS".to_string(),
-            ],
+            exclude_patterns: Vec::new(),
         }
     }
 }
