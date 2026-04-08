@@ -213,7 +213,10 @@ impl<'a> CodeIndex<'a> {
     }
 
     /// Walk the project and extract chunks from all text files.
-    pub fn index(&mut self) -> Result<usize, Error> {
+    ///
+    /// Files whose name starts with any pattern in `exclude_patterns` (case-insensitive)
+    /// are skipped. Pass an empty slice to index everything.
+    pub fn index(&mut self, exclude_patterns: &[String]) -> Result<usize, Error> {
         self.chunks.clear();
         self.chunk_map.clear();
 
@@ -229,6 +232,17 @@ impl<'a> CodeIndex<'a> {
 
             if !path.is_file() {
                 continue;
+            }
+
+            // Skip files matching exclude patterns (case-insensitive prefix on file name)
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                let name_lower = file_name.to_lowercase();
+                if exclude_patterns
+                    .iter()
+                    .any(|p| name_lower.starts_with(&p.to_lowercase()))
+                {
+                    continue;
+                }
             }
 
             let content = match fs::read_to_string(path) {

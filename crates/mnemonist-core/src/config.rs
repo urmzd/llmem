@@ -63,6 +63,12 @@ pub struct RecallConfig {
     /// Max code chunks to include via ref expansion per memory hit.
     #[serde(default = "default_max_ref_expansions")]
     pub max_ref_expansions: usize,
+    /// Minimum cosine similarity threshold (0.0-1.0). Results below this are discarded.
+    #[serde(default = "default_min_similarity")]
+    pub min_similarity: f32,
+    /// Minimum number of results to return, even if budget is exceeded.
+    #[serde(default = "default_min_results")]
+    pub min_results: usize,
 }
 
 fn default_true() -> bool {
@@ -71,6 +77,14 @@ fn default_true() -> bool {
 
 fn default_max_ref_expansions() -> usize {
     3
+}
+
+fn default_min_similarity() -> f32 {
+    0.35
+}
+
+fn default_min_results() -> usize {
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +101,8 @@ pub struct CodeConfig {
     pub languages: Vec<String>,
     /// Max lines per code chunk.
     pub max_chunk_lines: usize,
+    /// File name patterns to exclude from code indexing (case-insensitive prefix match).
+    pub exclude_patterns: Vec<String>,
 }
 
 /// Configuration for memory consolidation (sleep cycle).
@@ -180,6 +196,8 @@ impl Default for RecallConfig {
             ],
             expand_refs: true,
             max_ref_expansions: 3,
+            min_similarity: 0.35,
+            min_results: 2,
         }
     }
 }
@@ -200,6 +218,14 @@ impl Default for CodeConfig {
                 "go".to_string(),
             ],
             max_chunk_lines: 100,
+            exclude_patterns: vec![
+                "LICENSE".to_string(),
+                "LICENCE".to_string(),
+                "CODE_OF_CONDUCT".to_string(),
+                "CONTRIBUTING".to_string(),
+                "SECURITY".to_string(),
+                "CODEOWNERS".to_string(),
+            ],
         }
     }
 }

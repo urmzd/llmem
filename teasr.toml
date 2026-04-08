@@ -10,40 +10,120 @@ output_type = "gif"
 [font]
 family = "Iosevka Nerd Font Mono"
 
+# ── Terminal: full cognitive workflow ──
 [[scenes]]
 type = "terminal"
 name = "mnemonist-demo"
 theme = "dracula"
 cols = 100
 rows = 35
+frame_duration = 80
 
 [scenes.intro]
-text = "mnemonist\nAI-native memory for agents"
+text = "mnemonist\nAn open ecosystem for tool-agnostic AI agent memory"
 duration = 2000
 center = true
 
+# Step 1: Initialize memory
 [[scenes.interactions]]
 type = "type"
-text = "mnemonist memorize \"Rust's borrow checker prevents data races at compile time\""
+text = "mnemonist init"
 speed = 40
-
 [[scenes.interactions]]
 type = "key"
 key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 2000
 
+# Step 2: Memorize long-term knowledge (typed memories)
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist memorize \"prefer Rust for CLI tools\" -t feedback"
+speed = 35
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 2000
+
+# Step 3: Quick note into working memory inbox
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist note \"check async runtime choices for the server crate\""
+speed = 35
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 2000
+
+# Step 4: Consolidate — promote inbox, decay stale, re-embed
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist consolidate"
+speed = 40
+[[scenes.interactions]]
+type = "key"
+key = "enter"
 [[scenes.interactions]]
 type = "wait"
 duration = 3000
 
+# Step 5: Semantic recall across memories
 [[scenes.interactions]]
 type = "type"
-text = "mnemonist remember \"how does Rust prevent data races?\""
-speed = 40
-
+text = "mnemonist remember \"what language should I use for CLIs?\""
+speed = 35
 [[scenes.interactions]]
 type = "key"
 key = "enter"
-
 [[scenes.interactions]]
 type = "wait"
-duration = 5000
+duration = 4000
+
+# Step 6: Reflect — introspect all memories
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist reflect --all"
+speed = 40
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 3000
+
+# Step 7: Fuzzy forget
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist forget prefer-rust"
+speed = 40
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 2000
+
+# ── CLI help: show all cognitive commands ──
+[[scenes]]
+type = "terminal"
+name = "cli-help"
+theme = "dracula"
+cols = 100
+rows = 30
+frame_duration = 80
+
+[[scenes.interactions]]
+type = "type"
+text = "mnemonist --help"
+speed = 50
+[[scenes.interactions]]
+type = "key"
+key = "enter"
+[[scenes.interactions]]
+type = "wait"
+duration = 2000

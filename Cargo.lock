@@ -1360,7 +1360,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1376,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist-core"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "criterion",
  "dirs",
@@ -1392,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist-evals"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "criterion",
  "insta",
@@ -1409,7 +1409,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist-index"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "criterion",
  "ignore",
@@ -1422,7 +1422,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist-quant"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "criterion",
  "insta",
@@ -1435,7 +1435,7 @@ dependencies = [
 
 [[package]]
 name = "mnemonist-server"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "axum",

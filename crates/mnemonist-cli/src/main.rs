@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use mnemonist_core::{
     Config, Embedder, EmbeddingStore, Frontmatter, Inbox, InboxItem, IndexEntry, MemoryFile,
-    MemoryIndex, MemoryType, global_dir, mnemonist_root, project_dir,
+    MemoryIndex, MemoryType, global_dir, project_dir,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -498,9 +498,6 @@ fn run(cli: Cli) -> Result<()> {
             let embed_result = try_embed_single(&dir, &filename);
             let _ = build_memory_hnsw(&dir);
 
-            // Notify daemon to reload indices
-            daemon_notify_reload();
-
             if is_tty() {
                 use tui::*;
                 let ac = if action == "created" { GREEN } else { YELLOW };
@@ -536,7 +533,7 @@ fn run(cli: Cli) -> Result<()> {
                 id: slugify(&point, 4),
                 content: point,
                 source: "note".to_string(),
-                attention_score: 0.5, // default for manual notes
+                attention_score: 0.95, // user intent > auto-learned heuristics
                 created_at: now_iso(),
                 file_source: None,
             };
@@ -544,9 +541,6 @@ fn run(cli: Cli) -> Result<()> {
             inbox.push(item);
             inbox.last_updated = Some(now_iso());
             inbox.save(&dir)?;
-
-            // Notify daemon to reload
-            daemon_notify_reload();
 
             info!("noted ({}/{})", inbox.len(), inbox.capacity);
             output_ok(json!({
@@ -575,36 +569,101 @@ fn run(cli: Cli) -> Result<()> {
                 ask
             };
 
-            // Try daemon first (indices warm in memory)
-            if let Some(resp) = daemon_remember(&q, &level, budget, &root) {
-                println!("{}", serde_json::to_string(&resp).unwrap());
-            } else {
-                // Fall back to local file-based search
+            if q.trim().is_empty() {
+                anyhow::bail!("query must not be empty");
+            }
+
+            {
                 let dirs = level_dirs(&level, &root)?;
                 let mut memories: Vec<MemoryOut> = Vec::new();
                 let mut total_chars = 0usize;
+
+                let recall_cfg = Config::load();
+                let min_results = recall_cfg.recall.min_results;
 
                 let mut matched = semantic_search(&q, &dirs, &root);
                 if matched.is_empty() {
                     matched = text_search(&q, &dirs);
                 }
 
-                // Temporal re-ranking: blend cosine similarity with temporal score
-                let lambda = Config::load().quantization.temporal_weight as f64;
+                // Build candidates with all available signals for the reranker
                 let now_utc = chrono::Utc::now();
-                let mut scored: Vec<(PathBuf, IndexEntry, f32)> = matched
-                    .into_iter()
+                let candidates: Vec<mnemonist_core::Candidate> = matched
+                    .iter()
                     .map(|(dir, entry, cosine)| {
-                        let blended = temporal_blend(&dir, &entry, cosine, lambda, &now_utc) as f32;
-                        (dir, entry, blended)
+                        let parts: Vec<&str> = entry.file.rsplitn(3, ':').collect();
+                        let is_code = parts.len() == 3
+                            && parts[1].parse::<usize>().is_ok()
+                            && parts[0].parse::<usize>().is_ok();
+
+                        let (memory_signals, source_file) = if is_code {
+                            (None, parts[2].to_string())
+                        } else {
+                            let path = dir.join(&entry.file);
+                            let signals = MemoryFile::read(&path).ok().map(|mem| {
+                                let fm = &mem.frontmatter;
+                                let parse_dt =
+                                    |s: &Option<String>| -> Option<chrono::DateTime<chrono::Utc>> {
+                                        s.as_ref()?
+                                            .parse::<chrono::DateTime<chrono::FixedOffset>>()
+                                            .ok()
+                                            .map(|dt| dt.to_utc())
+                                    };
+                                let created = parse_dt(&fm.created_at);
+                                let accessed = parse_dt(&fm.last_accessed).or(created);
+                                let age_days = created
+                                    .map(|c| (now_utc - c).num_seconds() as f64 / 86400.0)
+                                    .unwrap_or(1.0);
+                                let recency_days = accessed
+                                    .map(|a| (now_utc - a).num_seconds() as f64 / 86400.0)
+                                    .unwrap_or(age_days);
+
+                                mnemonist_core::MemorySignals {
+                                    memory_type: fm.memory_type,
+                                    access_count: fm.access_count,
+                                    strength: fm.strength,
+                                    recency_days,
+                                    age_days,
+                                    source: fm.source.clone(),
+                                    ref_count: fm.refs.len(),
+                                }
+                            });
+                            (signals, entry.file.clone())
+                        };
+
+                        mnemonist_core::Candidate {
+                            id: entry.file.clone(),
+                            cosine_score: *cosine,
+                            memory_signals,
+                            source_file,
+                        }
                     })
                     .collect();
-                scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
-                for (dir, entry, score) in &scored {
-                    if total_chars >= budget {
+                // Load project-specific recall profile (or use uncalibrated defaults)
+                let profile = dirs
+                    .iter()
+                    .find_map(|d| mnemonist_core::RecallProfile::load(d))
+                    .unwrap_or_else(mnemonist_core::RecallProfile::uncalibrated);
+
+                // Rerank with multi-signal scoring + dynamic threshold
+                let ranked = mnemonist_core::rerank(&candidates, &profile);
+
+                // Resolve ranked results into memory output with budget control
+                // Build a lookup from entry.file -> (dir, entry) for efficient access
+                let entry_map: std::collections::HashMap<String, (&PathBuf, &IndexEntry)> = matched
+                    .iter()
+                    .map(|(d, e, _)| (e.file.clone(), (d, e)))
+                    .collect();
+
+                for result in &ranked {
+                    if total_chars >= budget && memories.len() >= min_results {
                         break;
                     }
+
+                    let Some((dir, entry)) = entry_map.get(&result.id) else {
+                        continue;
+                    };
 
                     // Code chunk entries have file format "path:start:end"
                     let parts: Vec<&str> = entry.file.rsplitn(3, ':').collect();
@@ -619,7 +678,9 @@ fn run(cli: Cli) -> Result<()> {
                                 let e = end.min(lines.len());
                                 let body = lines[s..e].join("\n");
                                 let body_chars = body.len();
-                                if total_chars + body_chars > budget && !memories.is_empty() {
+                                if total_chars + body_chars > budget
+                                    && memories.len() >= min_results
+                                {
                                     break;
                                 }
                                 total_chars += body_chars;
@@ -629,7 +690,7 @@ fn run(cli: Cli) -> Result<()> {
                                     name: entry.title.clone(),
                                     description: entry.summary.clone(),
                                     body,
-                                    score: *score,
+                                    score: result.final_score,
                                 });
                             }
                         }
@@ -640,7 +701,7 @@ fn run(cli: Cli) -> Result<()> {
                     let path = dir.join(&entry.file);
                     if let Ok(mut mem) = MemoryFile::read(&path) {
                         let body_chars = mem.body.len();
-                        if total_chars + body_chars > budget && !memories.is_empty() {
+                        if total_chars + body_chars > budget && memories.len() >= min_results {
                             break;
                         }
                         total_chars += body_chars;
@@ -655,19 +716,17 @@ fn run(cli: Cli) -> Result<()> {
                             name: mem.frontmatter.name.clone(),
                             description: mem.frontmatter.description.clone(),
                             body: mem.body.clone(),
-                            score: *score,
+                            score: result.final_score,
                         });
 
                         // Edge expansion: follow refs to code chunks and related memories
-                        let recall_config = Config::load();
-                        if recall_config.recall.expand_refs && !mem.frontmatter.refs.is_empty() {
-                            let max_exp = recall_config.recall.max_ref_expansions;
+                        if recall_cfg.recall.expand_refs && !mem.frontmatter.refs.is_empty() {
+                            let max_exp = recall_cfg.recall.max_ref_expansions;
                             for ref_id in mem.frontmatter.refs.iter().take(max_exp) {
                                 if total_chars >= budget {
                                     break;
                                 }
                                 if ref_id.ends_with(".md") {
-                                    // Memory-to-memory edge
                                     let ref_path = dir.join(ref_id);
                                     if let Ok(ref_mem) = MemoryFile::read(&ref_path) {
                                         total_chars += ref_mem.body.len();
@@ -684,7 +743,6 @@ fn run(cli: Cli) -> Result<()> {
                                         });
                                     }
                                 } else {
-                                    // Code chunk edge (file:start:end)
                                     let ref_parts: Vec<&str> = ref_id.rsplitn(3, ':').collect();
                                     if ref_parts.len() == 3
                                         && let (Ok(s), Ok(e)) = (
@@ -699,7 +757,7 @@ fn run(cli: Cli) -> Result<()> {
                                             let end = e.min(lines.len());
                                             let full = lines[start..end].join("\n");
                                             let max_c =
-                                                recall_config.consolidation.max_memory_tokens * 4;
+                                                recall_cfg.consolidation.max_memory_tokens * 4;
                                             let body = if full.len() > max_c {
                                                 format!("{}...", &full[..max_c])
                                             } else {
@@ -785,7 +843,7 @@ fn run(cli: Cli) -> Result<()> {
             // Phase 1: chunk files
             let strategy = mnemonist_index::code::ParagraphChunking::default();
             let mut code_index = mnemonist_index::code::CodeIndex::new(&ingest_path, &strategy);
-            let chunk_count = code_index.index()?;
+            let chunk_count = code_index.index(&config.code.exclude_patterns)?;
 
             let file_count = code_index
                 .chunks()
@@ -860,6 +918,16 @@ fn run(cli: Cli) -> Result<()> {
                                     "anisotropy": (aniso * 10000.0).round() / 10000.0,
                                     "similarity_range": (range * 10000.0).round() / 10000.0,
                                 });
+
+                                // Auto-calibrate recall profile from embedding quality
+                                let profile = mnemonist_core::RecallProfile::calibrate(
+                                    aniso,
+                                    range,
+                                    sample_embeddings.len(),
+                                );
+                                if let Err(e) = profile.save(&mem_dir) {
+                                    eprintln!("warning: failed to save recall profile: {e}");
+                                }
                             }
                         }
                         Err(e) => {
@@ -1191,10 +1259,6 @@ fn run(cli: Cli) -> Result<()> {
 
             let promoted = inbox_items.len();
             let decayed = to_remove.len();
-
-            if !dry_run {
-                daemon_notify_reload();
-            }
 
             if is_tty() {
                 use tui::*;
@@ -1598,55 +1662,6 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
-/// Compute blended score: (1-λ)*cosine + λ*temporal for temporal re-ranking.
-fn temporal_blend(
-    dir: &std::path::Path,
-    entry: &IndexEntry,
-    cosine_score: f32,
-    lambda: f64,
-    now: &chrono::DateTime<chrono::Utc>,
-) -> f64 {
-    // Code chunks: no temporal data, use cosine only
-    if entry.file.rsplitn(3, ':').count() == 3
-        && entry
-            .file
-            .rsplitn(3, ':')
-            .all(|p| p.parse::<usize>().is_ok() || p.contains('/'))
-    {
-        return cosine_score as f64;
-    }
-
-    let path = dir.join(&entry.file);
-    let temporal = if let Ok(mem) = MemoryFile::read(&path) {
-        let fm = &mem.frontmatter;
-        let parse_dt = |s: &Option<String>| -> Option<chrono::DateTime<chrono::Utc>> {
-            s.as_ref()?
-                .parse::<chrono::DateTime<chrono::FixedOffset>>()
-                .ok()
-                .map(|dt| dt.to_utc())
-        };
-        let created = parse_dt(&fm.created_at);
-        let accessed = parse_dt(&fm.last_accessed).or(created);
-        match (created, accessed) {
-            (Some(c), Some(a)) => {
-                let age_days = (*now - c).num_seconds() as f64 / 86400.0;
-                let recency_days = (*now - a).num_seconds() as f64 / 86400.0;
-                mnemonist_core::temporal::temporal_score(
-                    recency_days,
-                    age_days,
-                    fm.access_count,
-                    fm.memory_type,
-                )
-            }
-            _ => 0.5,
-        }
-    } else {
-        0.5
-    };
-
-    mnemonist_core::temporal::blend(cosine_score as f64, temporal, lambda)
-}
-
 /// Extract a compressed cue from code content.
 /// Prioritizes signatures and public items over raw truncation.
 fn extract_code_cue(content: &str, max_chars: usize) -> String {
@@ -1762,121 +1777,4 @@ fn try_embed_all(dir: &std::path::Path) -> Result<(usize, usize)> {
     store.save(&store_path)?;
 
     Ok((synced, total))
-}
-
-// -- Daemon client (Unix socket) --
-
-/// Socket path for the mnemonist daemon.
-fn daemon_socket_path() -> Option<PathBuf> {
-    mnemonist_root().map(|r| r.join("mnemonist.sock"))
-}
-
-/// Send a request to the daemon over Unix socket. Returns the parsed JSON
-/// response, or None if the daemon is not running.
-fn daemon_request(path: &str) -> Option<Value> {
-    use std::io::{BufRead, Write as _};
-    use std::os::unix::net::UnixStream;
-
-    let sock = daemon_socket_path()?;
-    let mut stream = UnixStream::connect(&sock).ok()?;
-    stream
-        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
-        .ok()?;
-
-    // Send HTTP/1.1 request
-    let req = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-    stream.write_all(req.as_bytes()).ok()?;
-
-    // Read response
-    let mut reader = std::io::BufReader::new(stream);
-
-    // Skip HTTP status line
-    let mut status_line = String::new();
-    reader.read_line(&mut status_line).ok()?;
-    if !status_line.contains("200") {
-        return None;
-    }
-
-    // Skip headers until empty line
-    loop {
-        let mut line = String::new();
-        reader.read_line(&mut line).ok()?;
-        if line.trim().is_empty() {
-            break;
-        }
-    }
-
-    // Read body (may be chunked or content-length based, but with Connection: close
-    // we can just read to EOF for simplicity)
-    let mut body = String::new();
-    reader.read_to_string(&mut body).ok()?;
-
-    // Handle chunked transfer encoding (axum default for HTTP/1.1)
-    let body = decode_chunked(&body).unwrap_or(body);
-
-    serde_json::from_str(&body).ok()
-}
-
-/// Decode chunked transfer encoding.
-fn decode_chunked(input: &str) -> Option<String> {
-    let mut result = String::new();
-    let mut remaining = input;
-
-    loop {
-        let remaining_trimmed = remaining.trim_start();
-        let newline_pos = remaining_trimmed.find("\r\n")?;
-        let size_str = &remaining_trimmed[..newline_pos];
-        let size = usize::from_str_radix(size_str.trim(), 16).ok()?;
-        if size == 0 {
-            break;
-        }
-        let data_start = remaining_trimmed.get((newline_pos + 2)..)?;
-        if data_start.len() < size {
-            return None;
-        }
-        result.push_str(&data_start[..size]);
-        remaining = &data_start[(size)..];
-        // Skip trailing \r\n after chunk data
-        if remaining.starts_with("\r\n") {
-            remaining = &remaining[2..];
-        }
-    }
-
-    Some(result)
-}
-
-/// Try to remember via the daemon. Returns the full JSON response if successful.
-fn daemon_remember(
-    query: &str,
-    level: &str,
-    budget: usize,
-    root: &std::path::Path,
-) -> Option<Value> {
-    let root_str = root.display();
-    let encoded_q = urlencoded(query);
-    let path = format!("/remember?q={encoded_q}&level={level}&budget={budget}&root={root_str}");
-    daemon_request(&path)
-}
-
-/// Fire-and-forget reload signal to the daemon.
-fn daemon_notify_reload() {
-    let _ = daemon_request("/reload");
-}
-
-/// Minimal URL encoding for query parameters.
-fn urlencoded(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            b' ' => out.push('+'),
-            _ => {
-                out.push('%');
-                out.push_str(&format!("{b:02X}"));
-            }
-        }
-    }
-    out
 }
