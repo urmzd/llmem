@@ -20,5 +20,8 @@
 # Embedding model cache
 .fastembed_cache/
 
+# Legacy memory directory
+.llmem/
+
 # Benchmark datasets (large, downloaded via scripts/get_data.sh)
 data/
