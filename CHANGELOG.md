@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 (2026-04-09)
+
+### Bug Fixes
+
+- **ci**: use native ARM runner for aarch64-linux build ([88a93bb](https://github.com/urmzd/mnemonist/commit/88a93bb36be32828a1b8c916370a3d1944a101d0))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.5.0...v0.5.1)
+
+
 ## 0.5.0 (2026-04-09)
 
 ### Features
