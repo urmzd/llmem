@@ -893,7 +893,7 @@ fn run(cli: Cli) -> Result<()> {
             // Phase 2: embed chunks and build HNSW index
             let mut embedded_count = 0usize;
             let mut eval_json = json!(null);
-            match mnemonist_core::FastEmbedder::default_model() {
+            match mnemonist_core::CandleEmbedder::default_model() {
                 Ok(embedder) => {
                     let dim = embedder.dimension()?;
                     let mut hnsw = mnemonist_index::hnsw::HnswIndex::with_defaults(dim);
@@ -1552,7 +1552,7 @@ fn semantic_search(
     dirs: &[PathBuf],
     _root: &std::path::Path,
 ) -> Vec<(PathBuf, IndexEntry, f32)> {
-    let embedder = match mnemonist_core::FastEmbedder::default_model() {
+    let embedder = match mnemonist_core::CandleEmbedder::default_model() {
         Ok(e) => e,
         Err(_) => return Vec::new(),
     };
@@ -1747,7 +1747,7 @@ fn extract_code_cue(content: &str, max_chars: usize) -> String {
 
 /// Try to embed a single file into the embedding store.
 fn try_embed_single(dir: &std::path::Path, filename: &str) -> Result<()> {
-    let embedder = mnemonist_core::FastEmbedder::default_model()?;
+    let embedder = mnemonist_core::CandleEmbedder::default_model()?;
     let store_path = dir.join(".embeddings.bin");
 
     let mut store = if store_path.exists() {
@@ -1795,7 +1795,7 @@ fn build_memory_hnsw(dir: &std::path::Path) -> Result<usize> {
 
 /// Try to re-embed all memories in a directory. Returns (synced, total).
 fn try_embed_all(dir: &std::path::Path) -> Result<(usize, usize)> {
-    let embedder = mnemonist_core::FastEmbedder::default_model()?;
+    let embedder = mnemonist_core::CandleEmbedder::default_model()?;
     let store_path = dir.join(".embeddings.bin");
 
     let mut store = if store_path.exists() {

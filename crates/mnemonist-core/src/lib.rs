@@ -13,7 +13,7 @@ pub mod temporal;
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
 pub use chunk::{Chunk, ChunkingStrategy};
 pub use config::Config;
-pub use embed::{Embedder, EmbeddingEntry, EmbeddingStore, FastEmbedder};
+pub use embed::{CandleEmbedder, Embedder, EmbeddingEntry, EmbeddingStore};
 pub use error::Error;
 pub use inbox::{FileSource, Inbox, InboxItem};
 pub use index::{IndexEntry, MemoryIndex};
