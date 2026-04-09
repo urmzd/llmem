@@ -26,6 +26,11 @@ toml = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 agentspec-update = { workspace = true }
 
+[features]
+default = []
+accelerate = ["mnemonist-core/accelerate"]
+cuda = ["mnemonist-core/cuda"]
+
 [dev-dependencies]
 tempfile = { workspace = true }
 serde_json = { workspace = true }

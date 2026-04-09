@@ -44,8 +44,15 @@ tower = { version = "0.5", features = ["util"] }
 dirs = "6"
 ignore = "0.4"
 
-# Embedding
-fastembed = { version = "5", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }
+# Embedding — candle (Metal/CUDA)
+candle-core = { version = "0.10" }
+candle-nn = { version = "0.10" }
+candle-transformers = { version = "0.10" }
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+hf-hub = { version = "0.4", features = ["tokio"] }
+
+# Parallelism
+rayon = "1.10"
 
 # Random
 rand = "0.9"

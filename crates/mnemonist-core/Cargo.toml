@@ -18,7 +18,18 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
 dirs = { workspace = true }
-fastembed = { workspace = true }
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+rayon = { workspace = true, optional = true }
+
+[features]
+default = ["candle"]
+candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub", "dep:rayon"]
+accelerate = ["candle", "candle-core/accelerate"]
+cuda = ["candle", "candle-core/cuda"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
