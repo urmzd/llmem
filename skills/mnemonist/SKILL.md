@@ -185,7 +185,7 @@ Results are interleaved by relevance, then sorted by type priority. The `refs` f
 
 ## Gotchas
 
-- First `memorize` or `learn` downloads the embedding model (~22 MB) to `~/.cache/fastembed/`
+- First `memorize` or `learn` downloads the embedding model from HuggingFace Hub
 - `--root` determines which project directory under `~/.mnemonist/` is used — defaults to cwd basename
 - `memorize` auto-embeds; `note` does not (items embed during `consolidate`)
 - `learn` overwrites the code index entirely on each run — it's a full re-ingest

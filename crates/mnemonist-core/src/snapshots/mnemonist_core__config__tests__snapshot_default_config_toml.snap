@@ -6,7 +6,7 @@ expression: toml_str
 root = "~/.mnemonist"
 
 [embedding]
-provider = "fastembed"
+provider = "candle"
 model = "all-MiniLM-L6-v2"
 
 [recall]

@@ -7,8 +7,8 @@ Config file: `~/.mnemonist/config.toml` (create with `mnemonist config init`).
 root = "~/.mnemonist"
 
 [embedding]
-provider = "fastembed"
-model = "all-MiniLM-L6-v2"    # 384-dim, ~22 MB, downloads on first use
+provider = "candle"
+model = "all-MiniLM-L6-v2"    # 384-dim, downloads from HuggingFace Hub on first use
 
 [recall]
 budget = 2000                  # output character limit

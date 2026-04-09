@@ -23,7 +23,7 @@
 - **Memory metadata** — strength, access count, last accessed, source tracking; Hebbian reinforcement on retrieval
 - **Plain markdown** with YAML frontmatter — human-readable, git-friendly
 - **Typed memories** — user, feedback, project, reference
-- **Local embedding** — `fastembed` crate with `all-MiniLM-L6-v2` (384-dim, ~22 MB, ONNX Runtime); no external server needed; model downloads to `~/.cache/fastembed/` on first use
+- **Local embedding** — `candle` crate with `all-MiniLM-L6-v2` (384-dim, CPU/CUDA); no external server needed; model downloads from HuggingFace Hub on first use
 - **Layered graph** — three HNSW layers: code (`.code-index.hnsw`), project memory (`.memory-index.hnsw`), and global memory; inter-layer edges via `refs` frontmatter field
 - **Pluggable code chunking** — `ChunkingStrategy` trait with built-in `ParagraphChunking` (blank-line boundaries) and `FixedLineChunking` (sliding window with overlap); no tree-sitter dependency
 - **Cross-layer recall** — `remember` searches memory and code indices in parallel with blended relevance scoring (semantic + temporal); follows `refs` edges to surface referenced code chunks
@@ -47,6 +47,22 @@ Or install via Cargo:
 ```bash
 cargo install mnemonist-cli
 ```
+
+### Hardware acceleration
+
+On macOS, enable Apple's Accelerate BLAS for ~2x faster embedding throughput:
+
+```bash
+cargo install mnemonist-cli --features accelerate
+```
+
+On Linux/Windows with an NVIDIA GPU:
+
+```bash
+cargo install mnemonist-cli --features cuda
+```
+
+Without either flag, embedding runs on CPU with pure Rust matmuls — functional but slower for large batch operations like `learn`.
 
 ## Quick Start
 
@@ -163,7 +179,7 @@ Config file: `~/.mnemonist/config.toml` (created with `mnemonist config init`)
 root = "~/.mnemonist"
 
 [embedding]
-provider = "fastembed"
+provider = "candle"
 model = "all-MiniLM-L6-v2"
 
 [recall]

@@ -181,15 +181,11 @@ pub trait Embedder: Send + Sync {
 }
 ```
 
-The default implementation uses local ONNX models via `fastembed`:
+The default implementation uses `candle` with HuggingFace sentence-transformer models:
 
 | Model | Dimensions | Notes |
 |-------|-----------|-------|
-| `all-MiniLM-L6-v2` | 384 | Default |
-| `all-MiniLM-L6-v2-q` | 384 | Quantized variant |
-| `all-MiniLM-L12-v2` | 384 | Higher quality |
-| `BGE-small-en-v1.5` | 384 | Alternative |
-| `BGE-small-en-v1.5-q` | 384 | Quantized alternative |
+| `sentence-transformers/all-MiniLM-L6-v2` | 384 | Default |
 
 ### 5.2 Embedding Store (.embeddings.bin)
 
@@ -537,7 +533,7 @@ All configuration is stored in `~/.mnemonist/config.toml` as a TOML file. The CL
 root = "~/.mnemonist"
 
 [embedding]
-provider = "fastembed"       # Embedding provider
+provider = "candle"          # Embedding provider
 model = "all-MiniLM-L6-v2"  # Model identifier
 
 [recall]

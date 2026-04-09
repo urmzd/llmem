@@ -56,7 +56,7 @@ Falls back to text search if no embeddings exist yet.
 Ingest a codebase as sensory experience. Phases:
 
 1. **Extract** — tree-sitter chunks for Rust/Python/JS/TS/Go; plain-text fallback for other files
-2. **Embed** — all chunks embedded with fastembed, stored in `.code-index.hnsw`
+2. **Embed** — all chunks embedded with candle, stored in `.code-index.hnsw`
 3. **Score** — attention scoring (struct=0.9, impl/trait=0.85, function=0.8, enum=0.75; +0.1 for public)
 4. **Promote** — top chunks added to inbox
 
