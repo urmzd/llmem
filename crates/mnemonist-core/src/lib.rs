@@ -10,6 +10,13 @@ pub mod memory;
 pub mod rerank;
 pub mod temporal;
 
+#[cfg(feature = "ann")]
+pub mod ann;
+#[cfg(feature = "evals")]
+pub mod evals;
+#[cfg(feature = "quant")]
+pub mod quant;
+
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
 pub use chunk::{Chunk, ChunkingStrategy};
 pub use config::Config;
