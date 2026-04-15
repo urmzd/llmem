@@ -924,7 +924,8 @@ fn run(cli: Cli) -> Result<()> {
                                 .collect();
 
                             if let Ok(sample_embeddings) = embedder.embed_batch(&sample_texts) {
-                                let aniso = mnemonist_core::ann::eval::anisotropy(&sample_embeddings);
+                                let aniso =
+                                    mnemonist_core::ann::eval::anisotropy(&sample_embeddings);
                                 let range =
                                     mnemonist_core::ann::eval::similarity_range(&sample_embeddings);
                                 eval_json = json!({
@@ -1157,9 +1158,11 @@ fn run(cli: Cli) -> Result<()> {
                     let k = 10;
                     let mut links: Vec<(String, String)> = Vec::new();
                     for entry in entries {
-                        if let Ok(hits) =
-                            mnemonist_core::ann::AnnIndex::search(&temp_hnsw, &entry.embedding, k + 1)
-                        {
+                        if let Ok(hits) = mnemonist_core::ann::AnnIndex::search(
+                            &temp_hnsw,
+                            &entry.embedding,
+                            k + 1,
+                        ) {
                             for hit in hits {
                                 if hit.id != entry.file && hit.score >= threshold {
                                     // Canonical ordering to deduplicate (a,b) == (b,a)
@@ -1648,8 +1651,10 @@ fn semantic_search(
             for dir in dirs {
                 let code_hnsw_path = dir.join(".code-index.hnsw");
                 if code_hnsw_path.exists()
-                    && let Ok(hnsw) = mnemonist_core::ann::hnsw::HnswIndex::load_from(&code_hnsw_path)
-                    && let Ok(hits) = mnemonist_core::ann::AnnIndex::search(&hnsw, &emb.embedding, 5)
+                    && let Ok(hnsw) =
+                        mnemonist_core::ann::hnsw::HnswIndex::load_from(&code_hnsw_path)
+                    && let Ok(hits) =
+                        mnemonist_core::ann::AnnIndex::search(&hnsw, &emb.embedding, 5)
                 {
                     for hit in hits {
                         let parts: Vec<&str> = hit.id.rsplitn(3, ':').collect();

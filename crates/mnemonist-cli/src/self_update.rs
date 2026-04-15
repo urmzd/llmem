@@ -92,11 +92,7 @@ fn atomic_replace(target: &PathBuf, new_bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub fn self_update(
-    repo: &str,
-    current_version: &str,
-    binary_name: &str,
-) -> Result<UpdateResult> {
+pub fn self_update(repo: &str, current_version: &str, binary_name: &str) -> Result<UpdateResult> {
     let release = fetch_latest_release(repo)?;
     let latest_version = release.tag_name.trim_start_matches('v');
 

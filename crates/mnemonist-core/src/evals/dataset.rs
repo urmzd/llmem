@@ -136,12 +136,7 @@ pub fn brute_force_top_k(query: &[f32], documents: &[Document], k: usize) -> Vec
     let mut scored: Vec<(usize, f32)> = documents
         .iter()
         .enumerate()
-        .map(|(i, doc)| {
-            (
-                i,
-                crate::distance::cosine_similarity(query, &doc.embedding),
-            )
-        })
+        .map(|(i, doc)| (i, crate::distance::cosine_similarity(query, &doc.embedding)))
         .collect();
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     scored.into_iter().take(k).map(|(i, _)| i).collect()

@@ -12,9 +12,9 @@ use std::time::Instant;
 
 use serde::Serialize;
 
-use crate::embed::Embedder;
 use crate::ann::AnnIndex;
 use crate::ann::hnsw::{HnswConfig, HnswIndex};
+use crate::embed::Embedder;
 
 use crate::evals::EvalError;
 use crate::evals::longmemeval::LongMemEvalDataset;

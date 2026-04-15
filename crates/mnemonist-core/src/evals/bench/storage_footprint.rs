@@ -5,9 +5,9 @@
 
 use serde::Serialize;
 
-use crate::distance::cosine_similarity;
 use crate::ann::AnnIndex;
 use crate::ann::hnsw::HnswIndex;
+use crate::distance::cosine_similarity;
 
 use crate::evals::EvalError;
 

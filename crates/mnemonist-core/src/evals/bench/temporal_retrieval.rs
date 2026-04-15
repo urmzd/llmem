@@ -8,9 +8,9 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use crate::MemoryType;
-use crate::temporal::{blend, temporal_score};
 use crate::ann::AnnIndex;
 use crate::ann::hnsw::{HnswConfig, HnswIndex};
+use crate::temporal::{blend, temporal_score};
 
 use crate::evals::EvalError;
 

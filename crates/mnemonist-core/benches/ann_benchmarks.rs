@@ -1,6 +1,8 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use mnemonist_core::ann::AnnIndex;
-use mnemonist_core::ann::distance::{cosine_similarity, dot_product, l2_distance_squared, normalize};
+use mnemonist_core::ann::distance::{
+    cosine_similarity, dot_product, l2_distance_squared, normalize,
+};
 use mnemonist_core::ann::eval::{anisotropy, discrimination_gap, mean_center, similarity_range};
 use mnemonist_core::ann::hnsw::HnswIndex;
 use mnemonist_core::ann::ivf::{IvfConfig, IvfFlatIndex};

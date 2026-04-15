@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use ignore::WalkBuilder;
 use crate::{Chunk, ChunkingStrategy, Error};
+use ignore::WalkBuilder;
 
 use super::AnnIndex;
 

@@ -12,10 +12,10 @@ pub mod temporal;
 
 #[cfg(feature = "ann")]
 pub mod ann;
-#[cfg(feature = "quant")]
-pub mod quant;
 #[cfg(feature = "evals")]
 pub mod evals;
+#[cfg(feature = "quant")]
+pub mod quant;
 
 pub use backend::{FileBackend, MemoryBackend, SemanticHit};
 pub use chunk::{Chunk, ChunkingStrategy};

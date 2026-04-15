@@ -14,9 +14,9 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
-use crate::embed::Embedder;
 use crate::ann::AnnIndex;
 use crate::ann::hnsw::{HnswConfig, HnswIndex};
+use crate::embed::Embedder;
 
 use super::EvalError;
 use super::longmemeval::LongMemEvalDataset;
