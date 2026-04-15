@@ -118,7 +118,7 @@ pub fn self_update(repo: &str, current_version: &str, binary_name: &str) -> Resu
             download_bytes(&a.browser_download_url)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
-                .map(|s| s.trim().split_whitespace().next().unwrap_or("").to_string())
+                .map(|s| s.split_whitespace().next().unwrap_or("").to_string())
         });
 
     eprintln!("downloading {binary_name} {latest_version} for {target}...");
