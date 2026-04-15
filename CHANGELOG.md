@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.1 (2026-04-15)
+
+### Documentation
+
+- **benchmarks**: add reference to raw benchmark results ([c632c0b](https://github.com/urmzd/mnemonist/commit/c632c0b64fd6d1e3bf7ee189eaf8d47fb9a49088))
+
+### Refactoring
+
+- consolidate index, quant, evals into core (#9) ([a012b66](https://github.com/urmzd/mnemonist/commit/a012b6681203aa697501d56bdae91ab15ce6f1c6))
+
+### Miscellaneous
+
+- migrate sr config and action to v4 ([9a18321](https://github.com/urmzd/mnemonist/commit/9a183211987b432a13486aeed81d251cd56276cf))
+- sync embedded files [skip ci] ([be7f035](https://github.com/urmzd/mnemonist/commit/be7f0356e5958c4d1d338e3f87db01569437afdf))
+- **release**: migrate from embed-src to fsrc ([86661ef](https://github.com/urmzd/mnemonist/commit/86661efda424da3283cf72fb5692e4d0c35f8179))
+- remove legacy .llmem directory from repo ([5d07cc4](https://github.com/urmzd/mnemonist/commit/5d07cc4e98f8ca58850fcf8515ab0f2240fa5ffe))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.7.0...v0.7.1)
+
+
 ## 0.7.0 (2026-04-09)
 
 ### Features
