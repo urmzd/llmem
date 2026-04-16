@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 (2026-04-16)
+
+### Features
+
+- add --hidden, --no-gitignore, and --exclude flags for code indexing ([fc87447](https://github.com/urmzd/mnemonist/commit/fc874471a8c60d4d95cba44285abc0db887d1684))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.7.3...v0.8.0)
+
+
 ## 0.7.3 (2026-04-16)
 
 ### Bug Fixes
