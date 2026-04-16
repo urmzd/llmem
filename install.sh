@@ -1,119 +1,136 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# install.sh — Installs the mnemonist binary from GitHub releases.
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/urmzd/mnemonist/main/install.sh | sh
+#
+# Environment variables:
+#   MNEMONIST_VERSION     — version to install (e.g. "v0.1.0"); defaults to latest
+#   MNEMONIST_INSTALL_DIR — installation directory; defaults to $HOME/.local/bin
+#   MNEMONIST_SHA256      — expected SHA256 checksum of the binary (hex string); skips verification if unset
+
+set -eu
 
 REPO="urmzd/mnemonist"
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-BINARY="${BINARY:-mnemonist}"
 
-usage() {
-  cat <<EOF
-Install mnemonist binaries from GitHub releases.
-
-Usage: install.sh [OPTIONS]
-
-Options:
-  --binary <name>    Binary to install (default: mnemonist)
-  --tag <tag>        Install a specific version (e.g. v0.1.0). Default: latest
-  --target <triple>  Override target triple detection
-  --dir <path>       Install directory (default: /usr/local/bin)
-  --musl             Prefer musl over gnu on Linux
-  -h, --help         Show this help
-
-Examples:
-  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash
-  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash -s -- --musl --tag v0.1.0
-EOF
-  exit 0
+# curl with optional auth — uses GH_TOKEN or GITHUB_TOKEN if set.
+gh_curl() {
+    token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    if [ -n "$token" ]; then
+        curl -fsSL -H "Authorization: token $token" "$@"
+    else
+        curl -fsSL "$@"
+    fi
 }
 
-die() { echo "error: $1" >&2; exit 1; }
+main() {
+    os=$(uname -s)
+    arch=$(uname -m)
 
-PREFER_MUSL=false
-TAG=""
-TARGET=""
+    case "$os" in
+        Linux)
+            case "$arch" in
+                x86_64)  target="x86_64-unknown-linux-musl" ;;
+                aarch64) target="aarch64-unknown-linux-musl" ;;
+                *)       err "Unsupported Linux architecture: $arch" ;;
+            esac
+            ;;
+        Darwin)
+            case "$arch" in
+                x86_64)  target="x86_64-apple-darwin" ;;
+                arm64)   target="aarch64-apple-darwin" ;;
+                *)       err "Unsupported macOS architecture: $arch" ;;
+            esac
+            ;;
+        MINGW*|MSYS*|CYGWIN*|Windows_NT)
+            err "Windows is not supported by this installer. Download a binary from https://github.com/$REPO/releases/latest"
+            ;;
+        *)
+            err "Unsupported operating system: $os"
+            ;;
+    esac
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --binary)  BINARY="$2";      shift 2 ;;
-    --tag)     TAG="$2";         shift 2 ;;
-    --target)  TARGET="$2";      shift 2 ;;
-    --dir)     INSTALL_DIR="$2"; shift 2 ;;
-    --musl)    PREFER_MUSL=true; shift ;;
-    -h|--help) usage ;;
-    *)         die "unknown option: $1" ;;
-  esac
-done
+    if [ -n "${MNEMONIST_VERSION:-}" ]; then
+        tag="$MNEMONIST_VERSION"
+    else
+        tag=$(gh_curl "https://api.github.com/repos/$REPO/releases/latest" \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+        if [ -z "$tag" ]; then
+            err "Failed to fetch latest release tag"
+        fi
+    fi
 
-detect_target() {
-  local os arch triple
+    artifact="mnemonist-${target}"
+    url="https://github.com/$REPO/releases/download/${tag}/${artifact}"
 
-  os="$(uname -s)"
-  arch="$(uname -m)"
+    install_dir="${MNEMONIST_INSTALL_DIR:-$HOME/.local/bin}"
+    mkdir -p "$install_dir"
 
-  case "$os" in
-    Linux)
-      case "$arch" in
-        x86_64)
-          if [ "$PREFER_MUSL" = true ]; then
-            triple="x86_64-unknown-linux-musl"
-          else
-            triple="x86_64-unknown-linux-gnu"
-          fi
-          ;;
-        aarch64|arm64)
-          if [ "$PREFER_MUSL" = true ]; then
-            triple="aarch64-unknown-linux-musl"
-          else
-            triple="aarch64-unknown-linux-gnu"
-          fi
-          ;;
-        *) die "unsupported architecture: $arch" ;;
-      esac
-      ;;
-    Darwin)
-      case "$arch" in
-        x86_64)  triple="x86_64-apple-darwin" ;;
-        arm64)   triple="aarch64-apple-darwin" ;;
-        *)       die "unsupported architecture: $arch" ;;
-      esac
-      ;;
-    MINGW*|MSYS*|CYGWIN*)
-      triple="x86_64-pc-windows-msvc"
-      ;;
-    *) die "unsupported OS: $os" ;;
-  esac
+    echo "Downloading mnemonist $tag for $target..."
+    gh_curl "$url" -o "$install_dir/mnemonist"
 
-  echo "$triple"
+    if [ -n "${MNEMONIST_SHA256:-}" ]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            actual=$(sha256sum "$install_dir/mnemonist" | awk '{print $1}')
+        elif command -v shasum >/dev/null 2>&1; then
+            actual=$(shasum -a 256 "$install_dir/mnemonist" | awk '{print $1}')
+        else
+            err "sha256sum or shasum required for checksum verification"
+        fi
+        if [ "$actual" != "$MNEMONIST_SHA256" ]; then
+            rm -f "$install_dir/mnemonist"
+            err "SHA256 mismatch: expected $MNEMONIST_SHA256, got $actual"
+        fi
+        echo "SHA256 verified: $actual"
+    fi
+
+    chmod +x "$install_dir/mnemonist"
+
+    echo "Installed mnemonist to $install_dir/mnemonist"
+
+    case ":$PATH:" in
+        *":$install_dir:"*) ;;
+        *) add_to_path "$install_dir" ;;
+    esac
 }
 
-if [ -z "$TARGET" ]; then
-  TARGET="$(detect_target)"
-fi
+add_to_path() {
+    install_dir="$1"
 
-if [ -z "$TAG" ]; then
-  TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)"
-  [ -n "$TAG" ] || die "could not determine latest release"
-fi
+    case "$(basename "$SHELL")" in
+        zsh)  profile="$HOME/.zshrc" ;;
+        bash)
+            if [ -f "$HOME/.bashrc" ]; then
+                profile="$HOME/.bashrc"
+            else
+                profile="$HOME/.profile"
+            fi
+            ;;
+        fish) profile="$HOME/.config/fish/config.fish" ;;
+        *)    profile="$HOME/.profile" ;;
+    esac
 
-EXT=""
-case "$TARGET" in
-  *windows*) EXT=".exe" ;;
-esac
+    if [ "$(basename "$SHELL")" = "fish" ]; then
+        if ! grep -q "$install_dir" "$profile" 2>/dev/null; then
+            mkdir -p "$(dirname "$profile")"
+            echo "" >> "$profile"
+            echo "# Added by mnemonist installer" >> "$profile"
+            echo "set -Ux fish_user_paths $install_dir \$fish_user_paths" >> "$profile"
+            echo "Added $install_dir to $profile"
+            echo "Restart your shell or run: source $profile"
+        fi
+    elif [ -n "$profile" ] && ! grep -q "$install_dir" "$profile" 2>/dev/null; then
+        echo "" >> "$profile"
+        echo "# Added by mnemonist installer" >> "$profile"
+        echo "export PATH=\"$install_dir:\$PATH\"" >> "$profile"
+        echo "Added $install_dir to $profile"
+        echo "Restart your shell or run: source $profile"
+    fi
+}
 
-ASSET="${BINARY}-${TARGET}${EXT}"
-URL="https://github.com/$REPO/releases/download/${TAG}/${ASSET}"
+err() {
+    echo "Error: $1" >&2
+    exit 1
+}
 
-echo "installing $BINARY $TAG ($TARGET)"
-echo "  from: $URL"
-echo "  to:   $INSTALL_DIR/$BINARY${EXT}"
-
-TMPFILE="$(mktemp)"
-trap 'rm -f "$TMPFILE"' EXIT
-
-curl -fsSL -o "$TMPFILE" "$URL" || die "download failed — check that $TAG has a build for $TARGET"
-chmod +x "$TMPFILE"
-
-mkdir -p "$INSTALL_DIR"
-mv "$TMPFILE" "$INSTALL_DIR/$BINARY${EXT}"
-
-echo "done: $("$INSTALL_DIR/$BINARY${EXT}" --version 2>/dev/null || echo "$BINARY installed")"
+main

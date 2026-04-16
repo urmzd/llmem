@@ -37,10 +37,8 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/urmzd/mnemonist/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/urmzd/mnemonist/main/install.sh | sh
 ```
-
-> Options: `--tag v0.1.0`, `--dir ~/.local/bin`, `--musl` (Linux)
 
 Or install via Cargo:
 
