@@ -162,6 +162,18 @@ enum Command {
         #[arg(long)]
         capacity: Option<usize>,
 
+        /// Include hidden files and directories (excluded by default)
+        #[arg(long)]
+        hidden: bool,
+
+        /// Don't respect .gitignore rules
+        #[arg(long)]
+        no_gitignore: bool,
+
+        /// Glob patterns to exclude (repeatable, e.g. --exclude 'dist/**')
+        #[arg(long, short = 'x')]
+        exclude: Vec<String>,
+
         /// Project root (defaults to current directory)
         #[arg(long, default_value = ".")]
         root: PathBuf,
@@ -845,6 +857,9 @@ fn run(cli: Cli) -> Result<()> {
             path,
             attend: _attend,
             capacity,
+            hidden,
+            no_gitignore,
+            exclude,
             root,
         } => {
             let root = std::fs::canonicalize(&root).context("could not resolve project root")?;
@@ -857,7 +872,13 @@ fn run(cli: Cli) -> Result<()> {
             // Phase 1: chunk files
             let strategy = mnemonist_core::ann::code::ParagraphChunking::default();
             let mut code_index = mnemonist_core::ann::code::CodeIndex::new(&ingest_path, &strategy);
-            let chunk_count = code_index.index(&config.code.exclude_patterns)?;
+            let index_opts = mnemonist_core::ann::code::IndexOptions {
+                hidden,
+                git_ignore: !no_gitignore,
+                exclude_globs: exclude,
+            };
+            let chunk_count =
+                code_index.index_with_options(&config.code.exclude_patterns, &index_opts)?;
 
             let file_count = code_index
                 .chunks()

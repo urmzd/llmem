@@ -193,6 +193,27 @@ pub struct CodeSearchHit {
     pub score: f32,
 }
 
+/// Options controlling file discovery during indexing.
+#[derive(Debug, Clone)]
+pub struct IndexOptions {
+    /// Include hidden files and directories (default: false — hidden files are skipped).
+    pub hidden: bool,
+    /// Respect `.gitignore` rules (default: true).
+    pub git_ignore: bool,
+    /// Additional glob patterns to exclude (e.g. `["dist/**", "*.min.js"]`).
+    pub exclude_globs: Vec<String>,
+}
+
+impl Default for IndexOptions {
+    fn default() -> Self {
+        Self {
+            hidden: false,
+            git_ignore: true,
+            exclude_globs: Vec::new(),
+        }
+    }
+}
+
 /// Indexes source files using a pluggable [`ChunkingStrategy`].
 pub struct CodeIndex<'a> {
     root: PathBuf,
@@ -217,14 +238,37 @@ impl<'a> CodeIndex<'a> {
     /// Files whose name starts with any pattern in `exclude_patterns` (case-insensitive)
     /// are skipped. Pass an empty slice to index everything.
     pub fn index(&mut self, exclude_patterns: &[String]) -> Result<usize, Error> {
+        self.index_with_options(exclude_patterns, &IndexOptions::default())
+    }
+
+    /// Walk the project with explicit walker options.
+    pub fn index_with_options(
+        &mut self,
+        exclude_patterns: &[String],
+        opts: &IndexOptions,
+    ) -> Result<usize, Error> {
         self.chunks.clear();
         self.chunk_map.clear();
 
-        let walker = WalkBuilder::new(&self.root)
-            .hidden(true)
-            .git_ignore(true)
-            .git_global(true)
-            .build();
+        let mut builder = WalkBuilder::new(&self.root);
+        builder
+            .hidden(!opts.hidden)
+            .git_ignore(opts.git_ignore)
+            .git_global(opts.git_ignore);
+
+        if !opts.exclude_globs.is_empty() {
+            let mut ob = ignore::overrides::OverrideBuilder::new(&self.root);
+            for pat in &opts.exclude_globs {
+                ob.add(&format!("!{pat}"))
+                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+            }
+            let overrides = ob
+                .build()
+                .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+            builder.overrides(overrides);
+        }
+
+        let walker = builder.build();
 
         for entry in walker {
             let entry = entry.map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
