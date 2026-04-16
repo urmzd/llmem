@@ -157,11 +157,15 @@ fn compute_recall_any(
     hits as f64 / query_embeddings.len() as f64
 }
 
+type SessionEmbeddings = Vec<(String, Vec<f32>)>;
+type QueryEmbeddings = Vec<Vec<f32>>;
+type QueryGold = Vec<Vec<String>>;
+
 /// Embed all sessions and queries from the dataset.
 fn embed_dataset(
     dataset: &LongMemEvalDataset,
     embedder: &dyn Embedder,
-) -> Result<(Vec<(String, Vec<f32>)>, Vec<Vec<f32>>, Vec<Vec<String>>), EvalError> {
+) -> Result<(SessionEmbeddings, QueryEmbeddings, QueryGold), EvalError> {
     const BATCH_SIZE: usize = 256;
 
     let total_sessions = dataset.sessions.len();

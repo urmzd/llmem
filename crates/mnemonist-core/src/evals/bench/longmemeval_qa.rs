@@ -54,12 +54,12 @@ pub fn run(
 }
 
 fn run_scoring(answers_path: &PathBuf) -> Result<QaExperimentResult, EvalError> {
-    let content = std::fs::read_to_string(answers_path)
-        .map_err(|e| EvalError::Other(e.to_string()))?;
+    let content =
+        std::fs::read_to_string(answers_path).map_err(|e| EvalError::Other(e.to_string()))?;
     let records: Vec<qa::QaAnswerRecord> = content
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .map(|l| serde_json::from_str(l))
+        .map(serde_json::from_str)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| EvalError::Other(e.to_string()))?;
 
@@ -123,8 +123,7 @@ fn run_retrieval(
         .join("\n");
 
     if let Some(ref output_path) = config.output_path {
-        std::fs::write(output_path, &jsonl)
-            .map_err(|e| EvalError::Other(e.to_string()))?;
+        std::fs::write(output_path, &jsonl).map_err(|e| EvalError::Other(e.to_string()))?;
         eprintln!("  wrote {} records to {:?}", records.len(), output_path);
     } else {
         println!("{jsonl}");

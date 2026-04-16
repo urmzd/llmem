@@ -95,8 +95,13 @@ pub fn run(
         let bytes_per_vec = (dim * bits as usize).div_ceil(8) + 4;
         let compressed_bytes = embeddings.len() * bytes_per_vec;
 
-        let recall_5 =
-            compute_quantized_recall_any(&embeddings, &dequantized, &query_embeddings, &query_gold, 5);
+        let recall_5 = compute_quantized_recall_any(
+            &embeddings,
+            &dequantized,
+            &query_embeddings,
+            &query_gold,
+            5,
+        );
         let recall_10 = compute_quantized_recall_any(
             &embeddings,
             &dequantized,
@@ -160,12 +165,19 @@ fn compute_quantized_recall_any(
     total_hits as f64 / query_embeddings.len() as f64
 }
 
+#[cfg(feature = "quant")]
+type SessionEmbeddings = Vec<(String, Vec<f32>)>;
+#[cfg(feature = "quant")]
+type QueryEmbeddings = Vec<Vec<f32>>;
+#[cfg(feature = "quant")]
+type QueryGold = Vec<Vec<String>>;
+
 /// Embed all sessions and queries from the dataset.
 #[cfg(feature = "quant")]
 fn embed_dataset(
     dataset: &LongMemEvalDataset,
     embedder: &dyn Embedder,
-) -> Result<(Vec<(String, Vec<f32>)>, Vec<Vec<f32>>, Vec<Vec<String>>), EvalError> {
+) -> Result<(SessionEmbeddings, QueryEmbeddings, QueryGold), EvalError> {
     const BATCH_SIZE: usize = 256;
 
     let total_sessions = dataset.sessions.len();

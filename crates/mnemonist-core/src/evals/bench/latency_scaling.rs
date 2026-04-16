@@ -109,11 +109,14 @@ pub fn run(
     Ok(LatencyResult { scale_points })
 }
 
+type SessionEmbeddings = Vec<(String, Vec<f32>)>;
+type QueryEmbeddings = Vec<Vec<f32>>;
+
 /// Embed all sessions and queries from the dataset.
 fn embed_dataset(
     dataset: &LongMemEvalDataset,
     embedder: &dyn Embedder,
-) -> Result<(Vec<(String, Vec<f32>)>, Vec<Vec<f32>>), EvalError> {
+) -> Result<(SessionEmbeddings, QueryEmbeddings), EvalError> {
     const BATCH_SIZE: usize = 256;
 
     let total_sessions = dataset.sessions.len();
