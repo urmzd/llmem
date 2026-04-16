@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2 (2026-04-16)
+
+### Bug Fixes
+
+- **ci**: migrate sr v4 to v7 for artifact and input support (#10) ([74d0273](https://github.com/urmzd/mnemonist/commit/74d02739cb9b2f38665182fb9d3ca3994de10477))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.7.1...v0.7.2)
+
+
 ## 0.7.1 (2026-04-15)
 
 ### Documentation
