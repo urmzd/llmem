@@ -31,13 +31,11 @@ mod tui {
 
     /// Render a horizontal bar of width `filled` out of `total`.
     pub fn bar(filled: usize, total: usize, width: usize) -> String {
-        let f = if total > 0 {
-            (filled * width) / total
-        } else {
-            0
-        }
-        .max(if filled > 0 { 1 } else { 0 })
-        .min(width);
+        let f = (filled * width)
+            .checked_div(total)
+            .unwrap_or(0)
+            .max(if filled > 0 { 1 } else { 0 })
+            .min(width);
         let e = width - f;
         format!("{BAR}{}{DIM}{}{RESET}", "█".repeat(f), "░".repeat(e),)
     }
@@ -930,12 +928,7 @@ fn run(cli: Cli) -> Result<()> {
 
                             // Eval: sample up to 100 chunks for quality metrics
                             let sample_size = chunk_count.min(100);
-                            let step = if sample_size > 0 {
-                                chunk_count / sample_size
-                            } else {
-                                1
-                            }
-                            .max(1);
+                            let step = chunk_count.checked_div(sample_size).unwrap_or(1).max(1);
                             let sample_texts: Vec<&str> = code_index
                                 .chunks()
                                 .iter()
