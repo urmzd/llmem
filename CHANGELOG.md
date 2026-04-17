@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.2 (2026-04-17)
+
+### Bug Fixes
+
+- **ci**: drop mnemonist-index from publish step (crate no longer exists) ([da0d1c1](https://github.com/urmzd/mnemonist/commit/da0d1c141e076491b1bc991a0031181e0c52e962))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.8.1...v0.8.2)
+
+
 ## 0.8.1 (2026-04-17)
 
 ### Bug Fixes
