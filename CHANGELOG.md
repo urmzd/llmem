@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.0 (2026-04-19)
+
+### Features
+
+- fold init, add progress TUI, layer config ([8bce2d3](https://github.com/urmzd/mnemonist/commit/8bce2d31b1427a2f6d38878a97409bc7ffc37a0b))
+
+### Bug Fixes
+
+- **ci**: apply cargo fmt, stage Cargo.lock in releases ([91c7fc8](https://github.com/urmzd/mnemonist/commit/91c7fc81d73f8062ad7e55c710ae7ef75311071c))
+- drop nonexistent sr init --merge flag ([babc735](https://github.com/urmzd/mnemonist/commit/babc73504249c4121088d6c32878d9387ae173b1))
+
+### Refactoring
+
+- move cargo publish into sr hooks.post_release ([41a0510](https://github.com/urmzd/mnemonist/commit/41a05109ea4c439227dde23c51f4d1ac81de2850))
+
+### Misc
+
+- **showcase**: re-record demo with measured wait durations ([d9e2ad4](https://github.com/urmzd/mnemonist/commit/d9e2ad4aa9eff5753ce4baaf206d21ab1f755cba))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.8.2...v0.9.0)
+
+
 ## 0.8.2 (2026-04-17)
 
 ### Bug Fixes
