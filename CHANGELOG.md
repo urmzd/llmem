@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 (2026-04-19)
+
+### Bug Fixes
+
+- retrigger release with sr v7.1.2 Cargo.lock handling ([20eacdf](https://github.com/urmzd/mnemonist/commit/20eacdf437f7228d17cab8d2321f04a2818b0974))
+
+[Full Changelog](https://github.com/urmzd/mnemonist/compare/v0.9.0...v0.9.1)
+
+
 ## 0.9.0 (2026-04-19)
 
 ### Features
