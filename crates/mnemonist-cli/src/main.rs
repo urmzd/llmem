@@ -84,7 +84,9 @@ impl StderrProgress {
         match s.total {
             Some(total) if total > 0 => {
                 let b = bar(current, total, 20);
-                eprint!("\r  {CYAN}◆{RESET} {BOLD}{phase}{RESET}  {b} {DIM}{current}/{total}{RESET}");
+                eprint!(
+                    "\r  {CYAN}◆{RESET} {BOLD}{phase}{RESET}  {b} {DIM}{current}/{total}{RESET}"
+                );
             }
             _ => {
                 eprint!("\r  {CYAN}◆{RESET} {BOLD}{phase}{RESET}  {DIM}{current}{RESET}");
@@ -143,9 +145,7 @@ impl mnemonist_core::Progress for StderrProgress {
         if note.is_empty() {
             eprintln!("  {GREEN}✓{RESET} {BOLD}{phase}{RESET}  {DIM}({elapsed:.1}s){RESET}");
         } else {
-            eprintln!(
-                "  {GREEN}✓{RESET} {BOLD}{phase}{RESET}  {DIM}{note} ({elapsed:.1}s){RESET}"
-            );
+            eprintln!("  {GREEN}✓{RESET} {BOLD}{phase}{RESET}  {DIM}{note} ({elapsed:.1}s){RESET}");
         }
         s.active = false;
     }
