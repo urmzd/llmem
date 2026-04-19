@@ -7,7 +7,7 @@ get-data:
 # Initialize project
 init: get-data
     rustup component add clippy rustfmt
-    sr init --merge 2>/dev/null || sr init
+    sr init
 
 # Build all crates
 build:
