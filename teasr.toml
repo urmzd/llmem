@@ -10,7 +10,9 @@ output_type = "gif"
 [font]
 family = "Iosevka Nerd Font Mono"
 
-# ── Terminal: full cognitive workflow ──
+# ── Full cognitive workflow ──
+# wait.duration = command runtime + reading room (teasr 0.18.1 `wait` sleeps
+# full duration then emits one frame; no idle-timer).
 [[scenes]]
 type = "terminal"
 name = "mnemonist-demo"
@@ -24,10 +26,10 @@ text = "mnemonist\nAn open ecosystem for tool-agnostic AI agent memory"
 duration = 2000
 center = true
 
-# Step 1: Ingest the codebase — auto-creates memory dir and embeds sources
+# Step 1: Ingest a small slice of the codebase (full repo is ~26s — too slow for a README gif)
 [[scenes.interactions]]
 type = "type"
-text = "mnemonist learn ."
+text = "mnemonist learn spec"
 speed = 40
 [[scenes.interactions]]
 type = "key"
@@ -36,7 +38,7 @@ key = "enter"
 type = "wait"
 duration = 2500
 
-# Step 2: Memorize long-term knowledge (typed memories)
+# Step 2: Memorize long-term knowledge (typed memory)
 [[scenes.interactions]]
 type = "type"
 text = "mnemonist memorize \"prefer Rust for CLI tools\" -t feedback"
@@ -58,7 +60,7 @@ type = "key"
 key = "enter"
 [[scenes.interactions]]
 type = "wait"
-duration = 2000
+duration = 1500
 
 # Step 4: Consolidate — promote inbox, decay stale, re-embed
 [[scenes.interactions]]
@@ -70,7 +72,7 @@ type = "key"
 key = "enter"
 [[scenes.interactions]]
 type = "wait"
-duration = 3000
+duration = 2500
 
 # Step 5: Semantic recall across memories
 [[scenes.interactions]]
@@ -82,7 +84,7 @@ type = "key"
 key = "enter"
 [[scenes.interactions]]
 type = "wait"
-duration = 4000
+duration = 2500
 
 # Step 6: Reflect — introspect all memories
 [[scenes.interactions]]
@@ -106,9 +108,9 @@ type = "key"
 key = "enter"
 [[scenes.interactions]]
 type = "wait"
-duration = 2000
+duration = 1500
 
-# ── CLI help: show all cognitive commands ──
+# ── CLI help: direct spawn — cleanest output, no shell prompt ──
 [[scenes]]
 type = "terminal"
 name = "cli-help"
@@ -116,14 +118,4 @@ theme = "dracula"
 cols = 100
 rows = 30
 frame_duration = 80
-
-[[scenes.interactions]]
-type = "type"
-text = "mnemonist --help"
-speed = 50
-[[scenes.interactions]]
-type = "key"
-key = "enter"
-[[scenes.interactions]]
-type = "wait"
-duration = 2000
+command = "mnemonist --help"
