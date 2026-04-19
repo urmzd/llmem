@@ -60,3 +60,8 @@ packages:
   - path: .
     version_files:
       - Cargo.toml
+    hooks:
+      post_release:
+        - cargo publish -p mnemonist-core
+        - sleep 30
+        - cargo publish -p mnemonist

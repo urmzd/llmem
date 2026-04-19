@@ -37,6 +37,13 @@ jobs:
   release:
     needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    outputs:
+      released: ${{ steps.sr.outputs.released }}
+      tag: ${{ steps.sr.outputs.tag }}
+      version: ${{ steps.sr.outputs.version }}
     steps:
       - name: Generate app token
         id: app-token
@@ -51,29 +58,6 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - uses: urmzd/sr@v7
-        id: sr
-        with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          force: ${{ inputs.force }}
-
-    outputs:
-      released: ${{ steps.sr.outputs.released }}
-      tag: ${{ steps.sr.outputs.tag }}
-      version: ${{ steps.sr.outputs.version }}
-
-  publish:
-    needs: release
-    if: needs.release.outputs.released == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release.outputs.tag }}
-
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -82,23 +66,13 @@ jobs:
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: Publish to crates.io
+      - uses: urmzd/sr@v7
+        id: sr
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: |
-          publish() {
-            local output
-            output=$(cargo publish -p "$1" 2>&1) && return 0
-            if echo "$output" | grep -q "already exists"; then
-              echo "$1 already published, skipping"
-              return 0
-            fi
-            echo "$output" >&2
-            return 1
-          }
-          publish mnemonist-core
-          sleep 30
-          publish mnemonist
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          force: ${{ inputs.force }}
 
   build:
     needs: release
