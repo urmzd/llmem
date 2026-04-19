@@ -13,11 +13,24 @@
 
 <p align="center">
   <a href="https://crates.io/crates/mnemonist"><img src="https://img.shields.io/crates/v/mnemonist" alt="crates.io"></a>
+  &nbsp;
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/urmzd/mnemonist" alt="License"></a>
 </p>
 
 <p align="center">
   <img src="showcase/mnemonist-demo.gif" alt="mnemonist demo" width="760">
 </p>
+
+## Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Benchmarks](#benchmarks)
+- [Testing](#testing)
+- [Agent Skill](#agent-skill)
+- [License](#license)
 
 ## Features
 
