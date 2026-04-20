@@ -1,4 +1,4 @@
-# sr v7 configuration
+# sr configuration
 # Reference: https://github.com/urmzd/sr#configuration
 
 git:
@@ -62,8 +62,6 @@ packages:
       - Cargo.toml
     stage_files:
       - Cargo.lock
-    hooks:
-      post_release:
-        - cargo publish -p mnemonist-core
-        - sleep 30
-        - cargo publish -p mnemonist
+    publish:
+      type: cargo
+      workspace: true
